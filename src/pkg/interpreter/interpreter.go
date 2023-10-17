@@ -20,10 +20,24 @@ func NewInterpreter() *Interpreter {
 	}
 }
 
-func (i *Interpreter) Interpret(statements []ast.Statement) {
-	for _, s := range statements {
-		i.execute(s);
+func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
+	for idx, s := range statements {
+		if len(statements) >= 1 && idx == len(statements) - 1 {
+			if es, ok := s.(*ast.ExpressionStatement); ok {
+				// if the last statement is an expression statement, return its value
+				val, err := i.evaluate(es.Expr())
+				if err == nil {
+					return val, true
+				}
+			} else {
+				// execute as normal if not expression statement
+				i.execute(s);
+			}
+		} else {
+			i.execute(s);
+		}
 	}
+	return nil, false
 }
 
 func (i *Interpreter) execute(s ast.Statement) error {
@@ -50,13 +64,13 @@ func (i *Interpreter) VisitBlockStatement(s *ast.BlockStatement) error {
 	return i.executeBlock(s.Statements(), NewEnclosingEnvironment(i.environment))
 }
 
-func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) error {
-	i.Evaluate(s.Expr())
+func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) (error) {
+	i.evaluate(s.Expr())
 	return nil
 }
 
 func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) error {
-	v, err := i.Evaluate(s.Expr())
+	v, err := i.evaluate(s.Expr())
 	if err == nil {
 		fmt.Println(Stringify(v))
 	}
@@ -67,7 +81,7 @@ func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) error {
 	var value any = nil;
 	var err error = nil;
 	if s.Initializer() != nil {
-		value, err = i.Evaluate(s.Initializer())
+		value, err = i.evaluate(s.Initializer())
 		if err != nil {
 			return err
 		}
@@ -77,17 +91,20 @@ func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) error {
 	return nil
 }
 
-func (i *Interpreter) Evaluate(e ast.Expression) (any, error) {
+func (i *Interpreter) evaluate(e ast.Expression) (any, error) {
 	return e.Accept(i)
 }
 
 func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) (any, error) {
-	value, err := i.Evaluate(e.Value());
+	value, err := i.evaluate(e.Value());
 	if err != nil {
 		return nil, err
 	}
 
-	i.environment.assign(e.Name(), value);
+	err = i.environment.assign(e.Name(), value);
+	if err != nil {
+		return nil, err
+	}
 	return value, nil
 }
 
@@ -100,11 +117,11 @@ func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) (any, erro
 }
 
 func (i *Interpreter) VisitGroupedExpression(ge *ast.GroupingExpression) (any, error) {
-	return i.Evaluate(ge.Expression())
+	return i.evaluate(ge.Expression())
 }
 
 func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) (any, error) {
-	right, err := i.Evaluate(ue.Expression())
+	right, err := i.evaluate(ue.Expression())
 	if err != nil {
 		return nil, err
 	}
@@ -126,11 +143,11 @@ func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) (any, error)
 }
 
 func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) (any, error) {
-	left, err := i.Evaluate(be.Left())
+	left, err := i.evaluate(be.Left())
 	if err != nil {
 		return nil, err
 	}
-	right, err := i.Evaluate(be.Right())
+	right, err := i.evaluate(be.Right())
 	if err != nil {
 		return nil, err
 	}

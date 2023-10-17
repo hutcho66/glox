@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hutcho66/glox/src/pkg/ast"
 	"github.com/hutcho66/glox/src/pkg/interpreter"
 	"github.com/hutcho66/glox/src/pkg/lox_error"
 	"github.com/hutcho66/glox/src/pkg/parser"
@@ -52,13 +51,9 @@ func run(source string, ipr *interpreter.Interpreter, prompt bool) {
 		return;
 	}
 
-	ipr.Interpret(statements);
+	last_expression_value, ok := ipr.Interpret(statements);
 
-	if prompt && len(statements) >= 1 {
-		if es, ok := statements[len(statements)-1].(*ast.ExpressionStatement); ok {
-			// in prompt mode, if last statment is expression statement, print it
-			val, _ := ipr.Evaluate(es.Expr())
-			fmt.Println(interpreter.Stringify(val));
-		}
+	if prompt && ok {
+		fmt.Println(interpreter.Stringify(last_expression_value));
 	}
 }

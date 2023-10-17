@@ -48,21 +48,28 @@ var a = 5; // this is another comment
 
 ### Statement Termination
 
-Unlike the reference lox implementation, semicolons are optional unless there is multiple statements on a line.
+Lox programs are a sequence of statements. In lox, statements are **not** expressions (even expression statements) and
+hence do not have a value. In the reference lox implementation, statements must be terminated with semicolons. However,
+unlike the reference lox implementation, in glox, semicolons are optional unless there is multiple statements on a line.
 
 ```bash
-> var a = 4
-> a = a + 1; print a
+> var a = 4 // this is valid
+> a = a + 1; print a // also valid
 5
+> a = 5 b = a // invalid
+[line 1] Error at 'b': Improperly terminated statement
 ```
 
-When using the REPL, the final statement on a line will be printed if it is an expression (whether terminated with a semicolon or not). Note that assignment is an expression but declaration is not.
+While statements in lox are not expressions and do not have a value, when using the REPL, if the final statement on a
+line is an expression statement (consists solely of an expression), it the value of the expression will be printed.
+
+Note that assignment is an expression but declaration is not.
 
 ```bash
 > 5 + 4; 3 - 2;
 1
-> var a = 5; // declaration is not an expression
-> a = 3;     // but assignment is
+> var a = 5; // declaration is not an expression, so this prints nothing
+> a = 3;     // but assignment is, so this prints the new value of a
 3
 ```
 
