@@ -12,7 +12,7 @@ Lox is a basic language with some object oriented features.
 
 Numbers are implemented as double precision floats but print as integers if it is suitable
 
-```js
+```bash
 > 5 + 4
 9
 > 3 / 2
@@ -21,14 +21,14 @@ Numbers are implemented as double precision floats but print as integers if it i
 
 Strings can be concatenated using the `+` operator
 
-```js
+```bash
 > "hello " + "world"
 hello world
 ```
 
 All values are truthy except the nil value and boolean false
 
-```js
+```bash
 > !false
 true
 > !nil
@@ -41,7 +41,7 @@ false
 
 Comments can be defined using `//` and must be on one line.
 
-```js
+```bash
 // this is a comment
 var a = 5; // this is another comment
 ```
@@ -50,7 +50,7 @@ var a = 5; // this is another comment
 
 Unlike the reference lox implementation, semicolons are optional unless there is multiple statements on a line.
 
-```js
+```bash
 > var a = 4
 > a = a + 1; print a
 5
@@ -58,7 +58,7 @@ Unlike the reference lox implementation, semicolons are optional unless there is
 
 When using the REPL, the final statement on a line will be printed if it is an expression (whether terminated with a semicolon or not). Note that assignment is an expression but declaration is not.
 
-```js
+```bash
 > 5 + 4; 3 - 2;
 1
 > var a = 5; // declaration is not an expression
