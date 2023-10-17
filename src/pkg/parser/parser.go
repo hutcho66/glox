@@ -20,7 +20,7 @@ func NewParser(tokens []token.Token) *Parser {
 
 func (p *Parser) Parse() []ast.Statement {
 	statements := []ast.Statement{}
-	for !p.isAtEnd() {
+	for !p.isAtEnd() && !p.check(token.NEW_LINE) {
 		statements = append(statements, p.declaration())
 	}
 
@@ -273,7 +273,7 @@ func (p *Parser) consume(tokenType token.TokenType, message string) (token.Token
 }
 
 func (p *Parser) endStatement() error {
-	// Must have at least one semicolon or newline
+	// Must have at least one semicolon or newline to terminate a statement
 	if terminated := p.match(token.SEMICOLON, token.NEW_LINE); !terminated {
 		return lox_error.ParserError(p.peek(), "Improperly terminated statement");
 	}
