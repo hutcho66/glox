@@ -9,14 +9,16 @@ import (
 type Expression interface {
 	expression() bool
 	String() string
-	Accept(Visitor) (any, error)
+	Accept(ExpressionVisitor) (any, error)
 }
 
-type Visitor interface {
+type ExpressionVisitor interface {
 	VisitBinaryExpression(*BinaryExpression) (any, error)
 	VisitGroupedExpression(*GroupingExpression) (any, error)
 	VisitUnaryExpression(*UnaryExpression) (any, error)
 	VisitLiteralExpression(*LiteralExpression) (any, error)
+	VisitVariableExpression(*VariableExpression) (any, error)
+	VisitAssignmentExpression(*AssignmentExpression) (any, error)
 }
 
 type BinaryExpression struct {
@@ -41,7 +43,7 @@ func (b BinaryExpression) String() string {
 	return fmt.Sprintf("%s %s %s", b.left, b.operator.GetLexeme(), b.right);
 }
 
-func (b *BinaryExpression) Accept(v Visitor) (any, error) {
+func (b *BinaryExpression) Accept(v ExpressionVisitor) (any, error) {
 	return v.VisitBinaryExpression(b);
 }
 
@@ -78,7 +80,7 @@ func (u UnaryExpression) String() string {
 	return fmt.Sprintf("%s%s", u.operator.GetLexeme(), u.expr);
 }
 
-func (u *UnaryExpression) Accept(v Visitor) (any, error) {
+func (u *UnaryExpression) Accept(v ExpressionVisitor) (any, error) {
 	return v.VisitUnaryExpression(u)
 }
 
@@ -109,7 +111,7 @@ func (g GroupingExpression) String() string {
 	return fmt.Sprintf("(%s)", g.expr);
 }
 
-func (g *GroupingExpression) Accept(v Visitor) (any, error) {
+func (g *GroupingExpression) Accept(v ExpressionVisitor) (any, error) {
 	return v.VisitGroupedExpression(g)
 }
 
@@ -142,7 +144,7 @@ func (l LiteralExpression) String() string {
 	}
 }
 
-func (l *LiteralExpression) Accept(v Visitor) (any, error) {
+func (l *LiteralExpression) Accept(v ExpressionVisitor) (any, error) {
 	return v.VisitLiteralExpression(l);
 }
 
@@ -150,4 +152,62 @@ func (l LiteralExpression) Value() any {
 	return l.value;
 }
 
+type VariableExpression struct {
+	name token.Token
+}
 
+func NewVariableExpression(name token.Token) Expression {
+	return &VariableExpression{
+		name: name,
+	};
+}
+
+// VariableExpression implements Expression
+func (VariableExpression) expression() bool {
+	return true;
+}
+
+func (e VariableExpression) String() string {
+	return e.name.GetLexeme()
+}
+
+func (e *VariableExpression) Accept(v ExpressionVisitor) (any, error) {
+	return v.VisitVariableExpression(e);
+}
+
+func (e VariableExpression) Name() token.Token {
+	return e.name;
+}
+
+type AssignmentExpression struct {
+	name token.Token
+	value Expression
+}
+
+func NewAssignmentExpression(name token.Token, value Expression) Expression {
+	return &AssignmentExpression{
+		name: name,
+		value: value,
+	};
+}
+
+// AssignmentExpression implements Expression
+func (AssignmentExpression) expression() bool {
+	return true;
+}
+
+func (e AssignmentExpression) String() string {
+	return e.name.GetLexeme() + " = " + e.value.String()
+}
+
+func (e *AssignmentExpression) Accept(v ExpressionVisitor) (any, error) {
+	return v.VisitAssignmentExpression(e);
+}
+
+func (e AssignmentExpression) Name() token.Token {
+	return e.name;
+}
+
+func (e AssignmentExpression) Value() Expression {
+	return e.value;
+}

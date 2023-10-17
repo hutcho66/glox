@@ -12,7 +12,8 @@ import (
 )
 
 func RunFile(content string) {
-	run(string(content));
+	interpreter := interpreter.NewInterpreter();
+	run(string(content), interpreter);
 
 	// If there was an error when parsing, exit before interpreting
 	if lox_error.HadParsingError() {
@@ -25,6 +26,7 @@ func RunFile(content string) {
 
 func RunPrompt() {
 	reader := bufio.NewReader(os.Stdin);
+	interpreter := interpreter.NewInterpreter();
 	fmt.Println("Welcome to the glox repl. Press CTRL-Z to exit.");
 
 	for {
@@ -33,22 +35,21 @@ func RunPrompt() {
 		if err != nil {
 			panic(err);
 		}
-		run(line);
+		run(line, interpreter);
 		lox_error.ResetError();
 	}
 }
 
-func run(source string) {
+func run(source string, interpreter *interpreter.Interpreter) {
 	s := scanner.NewScanner(source);
 	toks := s.ScanTokens();
 
 	p := parser.NewParser(toks);
-	expr := p.Parse();
+	statements := p.Parse();
 
 	if lox_error.HadParsingError() {
 		return;
 	}
 
-	interpreter := interpreter.NewInterpreter();
-	interpreter.Interpret(expr);
+	interpreter.Interpret(statements);
 }

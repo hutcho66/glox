@@ -18,16 +18,107 @@ func NewParser(tokens []token.Token) *Parser {
 	}
 }
 
-func (p *Parser) Parse() ast.Expression {
-	expr, err := p.expression();
+func (p *Parser) Parse() []ast.Statement {
+	statements := []ast.Statement{}
+	for !p.isAtEnd() {
+		statements = append(statements, p.declaration())
+	}
+
+	return statements
+}
+
+func (p *Parser) declaration() ast.Statement {
+	var s ast.Statement = nil;
+	var err error = nil;
+
+	if p.match(token.VAR) {
+		s, err = p.varDeclaration()
+	} else {
+		s, err = p.statement();
+	}
+
 	if err != nil {
+		p.synchronize();
 		return nil;
 	}
-	return expr;
+	return s;
+}
+
+func (p *Parser) varDeclaration() (ast.Statement, error) {
+	name, err := p.consume(token.IDENTIFIER, "Expect variable name.");
+	if err != nil {
+		return nil, err
+	}
+
+	var initializer ast.Expression = nil;
+	if p.match(token.EQUAL) {
+		initializer, err = p.expression();
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after variable declaration")
+	if err != nil {
+		return nil, err
+	}
+
+	return ast.NewVarStatement(name, initializer), nil
+}
+
+func (p *Parser) statement() (ast.Statement, error) {
+	if p.match(token.PRINT) {
+		return p.printStatement()
+	}
+
+	return p.expressionStatement()
+}
+
+func (p *Parser) printStatement() (ast.Statement, error) {
+	expr, err := p.expression();
+	if err != nil {
+		return nil, err;
+	}
+	p.consume(token.SEMICOLON, "Expect ';' after value");
+	return ast.NewPrintStatement(expr), nil
+}
+
+func (p *Parser) expressionStatement() (ast.Statement, error) {
+	expr, err := p.expression();
+	if err != nil {
+		return nil, err;
+	}
+	p.consume(token.SEMICOLON, "Expect ';' after expression");
+	return ast.NewExpressionStatement(expr), nil
 }
 
 func (p *Parser) expression() (ast.Expression, error) {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() (ast.Expression, error) {
+	expr, err := p.equality();
+	if err != nil {
+		return nil, err
+	}
+
+	if p.match(token.EQUAL) {
+		equals := p.previous();
+
+		value, err := p.assignment();
+		if err != nil {
+			return nil, err
+		}
+
+		if varExpr, ok := expr.(*ast.VariableExpression); ok {
+			name := varExpr.Name()
+			return ast.NewAssignmentExpression(name, value), nil
+		}
+
+		return nil, lox_error.ParserError(equals, "Invalid assignment target")
+	}
+
+	return expr, nil
 }
 
 func (p *Parser) equality() (ast.Expression, error) {
@@ -128,6 +219,9 @@ func (p *Parser) primary() (ast.Expression, error) {
 	if p.match(token.NUMBER, token.STRING) {
 		return ast.NewLiteralExpression(p.previous().GetLiteral()), nil;
 	}
+	if p.match(token.IDENTIFIER) {
+		return ast.NewVariableExpression(p.previous()), nil;
+	}
 	if p.match(token.LEFT_PAREN) {
 		expr, err := p.expression();
 		if err != nil {
@@ -186,18 +280,18 @@ func (p *Parser) previous() token.Token {
 	return p.tokens[p.current - 1]
 }
 
-// func (p *Parser) synchronize() {
-// 	p.advance();
+func (p *Parser) synchronize() {
+	p.advance();
 
-// 	for !p.isAtEnd() {
-// 		if p.previous().GetType() == token.SEMICOLON {
-// 			return;
-// 		}
+	for !p.isAtEnd() {
+		if p.previous().GetType() == token.SEMICOLON {
+			return;
+		}
 
-// 		switch (p.peek().GetType()) {
-// 			case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.PRINT, token.RETURN: return;
-// 		}
+		switch (p.peek().GetType()) {
+			case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.PRINT, token.RETURN: return;
+		}
 
-// 		p.advance();
-// 	}
-// }
+		p.advance();
+	}
+}

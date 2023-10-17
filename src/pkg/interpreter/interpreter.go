@@ -10,32 +10,69 @@ import (
 	"github.com/hutcho66/glox/src/pkg/token"
 )
 
-type Interpreter struct{}
-
-func NewInterpreter() *Interpreter {
-	return &Interpreter{}
+type Interpreter struct {
+	environment *Environment
 }
 
-func (i *Interpreter) Interpret(e ast.Expression) {
-	result, err := i.evaluate(e);
+func NewInterpreter() *Interpreter {
+	return &Interpreter{
+		environment: NewEnvironment(),
+	}
+}
+
+func (i *Interpreter) Interpret(statements []ast.Statement) {
+	for _, s := range statements {
+		i.execute(s);
+	}
+}
+
+func (i *Interpreter) execute(s ast.Statement) error {
+	return s.Accept(i);
+}
+
+func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) error {
+	i.evaluate(s.Expr())
+	return nil
+}
+
+func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) error {
+	v, err := i.evaluate(s.Expr())
 	if err == nil {
-		switch v := result.(type) {
-			case nil:     fmt.Println("nil");
-			case string: 	fmt.Println(v);
-			case bool:    fmt.Printf("%t\n", v);
-			case float64: {
-				if math.Mod(v, 1.0) == 0 {
-					fmt.Printf("%.0f\n", v);
-				} else {
-					fmt.Printf("%f\n", v);
-				}
-			}
+		fmt.Println(stringify(v))
+	}
+	return nil
+}
+
+func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) error {
+	var value any = nil;
+	var err error = nil;
+	if s.Initializer() != nil {
+		value, err = i.evaluate(s.Initializer())
+		if err != nil {
+			return err
 		}
 	}
+
+	i.environment.define(s.Name().GetLexeme(), value);
+	return nil
 }
 
 func (i *Interpreter) evaluate(e ast.Expression) (any, error) {
 	return e.Accept(i)
+}
+
+func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) (any, error) {
+	value, err := i.evaluate(e.Value());
+	if err != nil {
+		return nil, err
+	}
+
+	i.environment.assign(e.Name(), value);
+	return value, nil
+}
+
+func (i *Interpreter) VisitVariableExpression(e *ast.VariableExpression) (any, error) {
+	return i.environment.get(e.Name())
 }
 
 func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) (any, error) {
@@ -141,4 +178,20 @@ func isTruthy(value any) bool {
 		return v
 	}
 	return true
+}
+
+func stringify(v any) string {
+	switch v := v.(type) {
+		case nil:     return "nil";
+		case string: 	return fmt.Sprint(v);
+		case bool:    return fmt.Sprintf("%t", v);
+		case float64: {
+			if math.Mod(v, 1.0) == 0 {
+				return fmt.Sprintf("%.0f", v);
+			}
+			return fmt.Sprintf("%f", v);
+		}
+	}
+
+	return "unprintable object"
 }
