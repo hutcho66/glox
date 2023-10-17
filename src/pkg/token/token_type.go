@@ -5,6 +5,8 @@ type TokenType string;
 const (
   EOF TokenType = "EOF"
 
+  NEW_LINE   = "NEWLINE"
+
   // Single character symbols
   LEFT_PAREN  = "("
   RIGHT_PAREN = ")"

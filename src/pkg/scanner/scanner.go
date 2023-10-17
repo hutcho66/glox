@@ -70,7 +70,12 @@ func (s *Scanner) scanToken() {
 		case ' ': break;
 		case '\r': break;
 		case '\t': break;
-		case '\n': s.line++;
+
+		// Newlines are a token
+		case '\n': {
+			s.addToken(token.NEW_LINE)
+			s.line++;
+		}
 
 		// Literals
 		case '"': s.string();

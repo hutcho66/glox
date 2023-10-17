@@ -1,6 +1,10 @@
 package ast
 
-import "github.com/hutcho66/glox/src/pkg/token"
+import (
+	"strings"
+
+	"github.com/hutcho66/glox/src/pkg/token"
+)
 
 type Statement interface {
 	statement() bool
@@ -12,6 +16,7 @@ type StatementVisitor interface {
 	VisitExpressionStatement(*ExpressionStatement) error
 	VisitPrintStatement(*PrintStatement) error
 	VisitVarStatement(*VarStatement) error
+	VisitBlockStatement(*BlockStatement) error
 }
 
 type ExpressionStatement struct {
@@ -96,4 +101,36 @@ func (s VarStatement) Name() token.Token {
 
 func (s *VarStatement) Accept(v StatementVisitor) error {
 	return v.VisitVarStatement(s);
+}
+
+type BlockStatement struct {
+	statements []Statement
+}
+
+func NewBlockStatement(statements []Statement) *BlockStatement {
+	return &BlockStatement{
+		statements: statements,
+	}
+}
+
+func (BlockStatement) statement() bool {
+	return true
+}
+
+func (s BlockStatement) String() string {
+	buf := []string{};
+	buf = append(buf, "{");
+	for _, statement := range s.statements {
+		buf = append(buf, "\t" + statement.String())
+	}
+	buf = append(buf, "}")
+	return strings.Join(buf, "\n")
+}
+
+func (s BlockStatement) Statements() []Statement {
+	return s.statements
+}
+
+func (s *BlockStatement) Accept(v StatementVisitor) error {
+	return v.VisitBlockStatement(s);
 }

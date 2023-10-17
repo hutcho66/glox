@@ -58,7 +58,7 @@ func (p *Parser) varDeclaration() (ast.Statement, error) {
 		}
 	}
 
-	_, err = p.consume(token.SEMICOLON, "Expect ';' after variable declaration")
+	err = p.endStatement();
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +70,30 @@ func (p *Parser) statement() (ast.Statement, error) {
 	if p.match(token.PRINT) {
 		return p.printStatement()
 	}
+	if p.match(token.LEFT_BRACE) {
+		block, err := p.block();
+		if err != nil {
+			return nil, err
+		}
+		return ast.NewBlockStatement(block), nil
+	}
 
 	return p.expressionStatement()
+}
+
+func (p *Parser) block() ([]ast.Statement, error) {
+	statements := []ast.Statement{}
+
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		statement := p.declaration()
+		statements = append(statements, statement)
+	}
+
+	_, err := p.consume(token.RIGHT_BRACE, "Expect '}' after block")
+	if err != nil {
+		return nil, err
+	}
+	return statements, nil
 }
 
 func (p *Parser) printStatement() (ast.Statement, error) {
@@ -79,7 +101,10 @@ func (p *Parser) printStatement() (ast.Statement, error) {
 	if err != nil {
 		return nil, err;
 	}
-	p.consume(token.SEMICOLON, "Expect ';' after value");
+	err = p.endStatement();
+	if err != nil {
+		return nil, err
+	}
 	return ast.NewPrintStatement(expr), nil
 }
 
@@ -88,7 +113,10 @@ func (p *Parser) expressionStatement() (ast.Statement, error) {
 	if err != nil {
 		return nil, err;
 	}
-	p.consume(token.SEMICOLON, "Expect ';' after expression");
+	err = p.endStatement();
+	if err != nil {
+		return nil, err
+	}
 	return ast.NewExpressionStatement(expr), nil
 }
 
@@ -242,6 +270,20 @@ func (p *Parser) consume(tokenType token.TokenType, message string) (token.Token
 	}
 
 	return token.Token{}, lox_error.ParserError(p.peek(), message);
+}
+
+func (p *Parser) endStatement() error {
+	// Must have at least one semicolon or newline
+	if terminated := p.match(token.SEMICOLON, token.NEW_LINE); !terminated {
+		return lox_error.ParserError(p.peek(), "Improperly terminated statement");
+	}
+
+	// Consume as many extra newlines as possible
+	for p.match(token.NEW_LINE) {
+		continue
+	}
+
+	return nil
 }
 
 func (p *Parser) match(tokenTypes ...token.TokenType) bool {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/hutcho66/glox/src/pkg/ast"
 	"github.com/hutcho66/glox/src/pkg/interpreter"
 	"github.com/hutcho66/glox/src/pkg/lox_error"
 	"github.com/hutcho66/glox/src/pkg/parser"
@@ -12,8 +13,8 @@ import (
 )
 
 func RunFile(content string) {
-	interpreter := interpreter.NewInterpreter();
-	run(string(content), interpreter);
+	ipr := interpreter.NewInterpreter();
+	run(string(content), ipr, false);
 
 	// If there was an error when parsing, exit before interpreting
 	if lox_error.HadParsingError() {
@@ -26,7 +27,7 @@ func RunFile(content string) {
 
 func RunPrompt() {
 	reader := bufio.NewReader(os.Stdin);
-	interpreter := interpreter.NewInterpreter();
+	ipr := interpreter.NewInterpreter();
 	fmt.Println("Welcome to the glox repl. Press CTRL-Z to exit.");
 
 	for {
@@ -35,12 +36,12 @@ func RunPrompt() {
 		if err != nil {
 			panic(err);
 		}
-		run(line, interpreter);
+		run(line, ipr, true);
 		lox_error.ResetError();
 	}
 }
 
-func run(source string, interpreter *interpreter.Interpreter) {
+func run(source string, ipr *interpreter.Interpreter, prompt bool) {
 	s := scanner.NewScanner(source);
 	toks := s.ScanTokens();
 
@@ -51,5 +52,13 @@ func run(source string, interpreter *interpreter.Interpreter) {
 		return;
 	}
 
-	interpreter.Interpret(statements);
+	ipr.Interpret(statements);
+
+	if prompt && len(statements) >= 1 {
+		if es, ok := statements[len(statements)-1].(*ast.ExpressionStatement); ok {
+			// in prompt mode, if last statment is expression statement, print it
+			val, _ := ipr.Evaluate(es.Expr())
+			fmt.Println(interpreter.Stringify(val));
+		}
+	}
 }
