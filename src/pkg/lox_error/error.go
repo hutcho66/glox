@@ -1,22 +1,50 @@
 package lox_error
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
 
-var hadError = false;
+	"github.com/hutcho66/glox/src/pkg/token"
+)
 
-func Error(line int, message string) {
+var hadParsingError = false;
+var hadRuntimeError = false;
+
+func ScannerError(line int, message string) {
+	hadParsingError = true;
 	Report(line, "", message);
+}
+
+func ParserError(t token.Token, message string) error {
+	hadParsingError = true;
+	if t.GetType() == token.EOF {
+		Report(t.GetLine(), " at end", message);
+	} else {
+		Report(t.GetLine(), " at '" + t.GetLexeme() + "'", message);
+	}
+
+	return errors.New("");
+}
+
+func RuntimeError(t token.Token, message string) error {
+	hadRuntimeError = true;
+	Report(t.GetLine(), " at '" + t.GetLexeme() + "'", message)
+	return errors.New("");
 }
 
 func Report(line int, where, message string) {
 	fmt.Printf("[line %d] Error%s: %s\n", line, where, message);
-	hadError = true;
 }
 
-func HadError() bool {
-	return hadError;
+func HadParsingError() bool {
+	return hadParsingError;
+}
+
+func HadRuntimeError() bool {
+	return hadRuntimeError;
 }
 
 func ResetError() {
-	hadError = false;
+	hadParsingError = false;
+	hadRuntimeError = false;
 }

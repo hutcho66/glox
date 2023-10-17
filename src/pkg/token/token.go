@@ -1,7 +1,5 @@
 package token
 
-import "fmt"
-
 type Token struct {
 	tokenType TokenType
 	lexeme string
@@ -18,9 +16,19 @@ func NewToken(tokenType TokenType, lexeme string, literal any, line int) *Token 
 	};
 }
 
-func (t Token) String() string {
-	if t.literal == nil {
-		return fmt.Sprintf("%s %s", t.tokenType, t.lexeme);
-	}
-	return fmt.Sprintf("%s %s %s", t.tokenType, t.lexeme, t.literal);
+func (t Token) GetType() TokenType {
+	return t.tokenType;
 }
+
+func (t Token) GetLiteral() any {
+	return t.literal;
+}
+
+func (t Token) GetLexeme() string {
+	return t.lexeme;
+}
+
+func (t Token) GetLine() int {
+	return t.line;
+}
+

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hutcho66/glox/src/pkg/interpreter"
+	"github.com/hutcho66/glox/src/pkg/repl"
 )
 
 func main() {
@@ -18,8 +18,8 @@ func main() {
 		if err != nil {
 			panic(fmt.Sprintf("Invalid path '%s', ensure path is relative to current working directory.", args[0]));
 		}
-		interpreter.RunFile(string(content));
+		repl.RunFile(string(content));
 	} else {
-		interpreter.RunPrompt();
+		repl.RunPrompt();
 	}
 }

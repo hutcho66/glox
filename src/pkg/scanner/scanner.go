@@ -81,7 +81,7 @@ func (s *Scanner) scanToken() {
 			} else if isAlpha(c) {
 				s.identifier();
 			} else {
-				lox_error.Error(s.line, "Unexpected character.")
+				lox_error.ScannerError(s.line, "Unexpected character.")
 			}
 		}
 	}
@@ -97,7 +97,7 @@ func (s *Scanner) string() {
 	}
 
 	if s.isAtEnd() {
-		lox_error.Error(s.line, "Unterminated string.");
+		lox_error.ScannerError(s.line, "Unterminated string.");
 		return;
 	}
 
