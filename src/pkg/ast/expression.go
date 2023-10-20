@@ -9,17 +9,17 @@ import (
 type Expression interface {
 	expression() bool
 	String() string
-	Accept(ExpressionVisitor) (any, error)
+	Accept(ExpressionVisitor) any
 }
 
 type ExpressionVisitor interface {
-	VisitBinaryExpression(*BinaryExpression) (any, error)
-	VisitLogicalExpression(*LogicalExpression) (any, error)
-	VisitGroupedExpression(*GroupingExpression) (any, error)
-	VisitUnaryExpression(*UnaryExpression) (any, error)
-	VisitLiteralExpression(*LiteralExpression) (any, error)
-	VisitVariableExpression(*VariableExpression) (any, error)
-	VisitAssignmentExpression(*AssignmentExpression) (any, error)
+	VisitBinaryExpression(*BinaryExpression) any
+	VisitLogicalExpression(*LogicalExpression) any
+	VisitGroupedExpression(*GroupingExpression) any
+	VisitUnaryExpression(*UnaryExpression) any
+	VisitLiteralExpression(*LiteralExpression) any
+	VisitVariableExpression(*VariableExpression) any
+	VisitAssignmentExpression(*AssignmentExpression) any
 }
 
 type BinaryExpression struct {
@@ -44,7 +44,7 @@ func (b BinaryExpression) String() string {
 	return fmt.Sprintf("%s %s %s", b.left, b.operator.GetLexeme(), b.right)
 }
 
-func (b *BinaryExpression) Accept(v ExpressionVisitor) (any, error) {
+func (b *BinaryExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitBinaryExpression(b)
 }
 
@@ -82,7 +82,7 @@ func (b LogicalExpression) String() string {
 	return fmt.Sprintf("%s %s %s", b.left, b.operator.GetLexeme(), b.right)
 }
 
-func (b *LogicalExpression) Accept(v ExpressionVisitor) (any, error) {
+func (b *LogicalExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitLogicalExpression(b)
 }
 
@@ -119,7 +119,7 @@ func (u UnaryExpression) String() string {
 	return fmt.Sprintf("%s%s", u.operator.GetLexeme(), u.expr)
 }
 
-func (u *UnaryExpression) Accept(v ExpressionVisitor) (any, error) {
+func (u *UnaryExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitUnaryExpression(u)
 }
 
@@ -150,7 +150,7 @@ func (g GroupingExpression) String() string {
 	return fmt.Sprintf("(%s)", g.expr)
 }
 
-func (g *GroupingExpression) Accept(v ExpressionVisitor) (any, error) {
+func (g *GroupingExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitGroupedExpression(g)
 }
 
@@ -188,7 +188,7 @@ func (l LiteralExpression) String() string {
 	}
 }
 
-func (l *LiteralExpression) Accept(v ExpressionVisitor) (any, error) {
+func (l *LiteralExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitLiteralExpression(l)
 }
 
@@ -215,7 +215,7 @@ func (e VariableExpression) String() string {
 	return e.name.GetLexeme()
 }
 
-func (e *VariableExpression) Accept(v ExpressionVisitor) (any, error) {
+func (e *VariableExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitVariableExpression(e)
 }
 
@@ -244,7 +244,7 @@ func (e AssignmentExpression) String() string {
 	return e.name.GetLexeme() + " = " + e.value.String()
 }
 
-func (e *AssignmentExpression) Accept(v ExpressionVisitor) (any, error) {
+func (e *AssignmentExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitAssignmentExpression(e)
 }
 

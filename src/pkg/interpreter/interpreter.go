@@ -1,7 +1,6 @@
 package interpreter
 
 import (
-	"errors"
 	"fmt"
 	"math"
 
@@ -25,10 +24,7 @@ func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
 		if len(statements) >= 1 && idx == len(statements)-1 {
 			if es, ok := s.(*ast.ExpressionStatement); ok {
 				// if the last statement is an expression statement, return its value
-				val, err := i.evaluate(es.Expr())
-				if err == nil {
-					return val, true
-				}
+				return i.evaluate(es.Expr()), true
 			} else {
 				// execute as normal if not expression statement
 				i.execute(s)
@@ -37,157 +33,145 @@ func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
 			i.execute(s)
 		}
 	}
+
+	// last statement is not expression statement, so has no return value
 	return nil, false
 }
 
-func (i *Interpreter) execute(s ast.Statement) error {
-	return s.Accept(i)
+func (i *Interpreter) execute(s ast.Statement) (ok bool) {
+	// catch any panics and suppress, returning ok=false
+	defer func() {
+		if err := recover(); err != nil {
+			ok = false
+			return
+		}
+	}()
+
+	s.Accept(i)
+	return true
 }
 
-func (i *Interpreter) executeBlock(s []ast.Statement, environment *Environment) error {
+func (i *Interpreter) executeBlock(s []ast.Statement, environment *Environment) {
 	previous := i.environment
 	i.environment = environment
 
 	for _, statement := range s {
-		err := i.execute(statement)
-		if err != nil {
+		if ok := i.execute(statement); !ok {
+			// if statement didn't parse, end execution here
 			i.environment = previous
-			return err
+			return
 		}
 	}
 
 	i.environment = previous
-	return nil
 }
 
-func (i *Interpreter) VisitBlockStatement(s *ast.BlockStatement) error {
-	return i.executeBlock(s.Statements(), NewEnclosingEnvironment(i.environment))
+func (i *Interpreter) VisitBlockStatement(s *ast.BlockStatement) {
+	i.executeBlock(s.Statements(), NewEnclosingEnvironment(i.environment))
 }
 
-func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) error {
-	_, err := i.evaluate(s.Expr())
-	return err
+func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) {
+	i.evaluate(s.Expr())
 }
 
-func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) error {
-	conditionResult, err := i.evaluate(s.Condition())
-	if err == nil && isTruthy(conditionResult) {
-		err = i.execute(s.Consequence())
+func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) {
+	conditionResult := i.evaluate(s.Condition())
+	if isTruthy(conditionResult) {
+		i.execute(s.Consequence())
 	} else if s.Alternative() != nil {
-		err = i.execute(s.Alternative())
+		i.execute(s.Alternative())
 	}
-
-	// err will still be nil if everything succeeded
-	return err
 }
 
-func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) error {
-	v, err := i.evaluate(s.Expr())
-	if err == nil {
-		fmt.Println(Stringify(v))
-	}
-	return err
+func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) {
+	v := i.evaluate(s.Expr())
+	fmt.Println(Stringify(v))
 }
 
-func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) error {
+func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
 	var value any = nil
-	var err error = nil
 
 	if s.Initializer() != nil {
-		value, err = i.evaluate(s.Initializer())
+		value = i.evaluate(s.Initializer())
 	}
 
-	if err != nil {
-		i.environment.define(s.Name().GetLexeme(), value)
-	}
-
-	return err
+	i.environment.define(s.Name().GetLexeme(), value)
 }
 
-func (i *Interpreter) evaluate(e ast.Expression) (any, error) {
+func (i *Interpreter) evaluate(e ast.Expression) any {
 	return e.Accept(i)
 }
 
-func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) (any, error) {
-	value, err := i.evaluate(e.Value())
+func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) any {
+	value := i.evaluate(e.Value())
+	i.environment.assign(e.Name(), value)
 
-	if err == nil {
-		err = i.environment.assign(e.Name(), value)
+	return value
+}
+
+func (i *Interpreter) VisitVariableExpression(e *ast.VariableExpression) any {
+	if value, err := i.environment.get(e.Name()); err == nil {
+		return value
+	} else {
+		panic(err)
 	}
-
-	return value, err
 }
 
-func (i *Interpreter) VisitVariableExpression(e *ast.VariableExpression) (any, error) {
-	return i.environment.get(e.Name())
+func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) any {
+	return le.Value()
 }
 
-func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) (any, error) {
-	return le.Value(), nil
-}
-
-func (i *Interpreter) VisitGroupedExpression(ge *ast.GroupingExpression) (any, error) {
+func (i *Interpreter) VisitGroupedExpression(ge *ast.GroupingExpression) any {
 	return i.evaluate(ge.Expression())
 }
 
-func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) (any, error) {
-	left, err := i.evaluate(le.Left())
-	if err != nil {
-		return nil, err
-	}
+func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) any {
+	left := i.evaluate(le.Left())
 
 	if le.Operator().GetType() == token.OR {
 		if isTruthy(left) {
-			return left, nil
+			return left
 		}
 	} else {
 		if !isTruthy(left) {
-			return left, nil
+			return left
 		}
 	}
 
 	return i.evaluate(le.Right())
 }
 
-func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) (any, error) {
-	right, err := i.evaluate(ue.Expression())
-	if err != nil {
-		return nil, err
-	}
+func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) any {
+	right := i.evaluate(ue.Expression())
+	operator := ue.Operator()
 
-	switch ue.Operator().GetType() {
+	switch operator.GetType() {
 	case token.BANG:
-		return !isTruthy(right), nil
+		return !isTruthy(right)
 	case token.MINUS:
 		{
 			if r, ok := right.(float64); ok {
-				return -r, nil
+				return -r
 			}
-			return 0, lox_error.RuntimeError(ue.Operator(), "Operand must be a number")
+			panic(lox_error.RuntimeError(operator, "Operand must be a number"))
 		}
 	}
 
 	// Unreachable
-	return 0, errors.New("unreachable error")
+	panic(lox_error.RuntimeError(operator, "Unreachable"))
 }
 
-func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) (any, error) {
-	left, err := i.evaluate(be.Left())
-	if err != nil {
-		return nil, err
-	}
-	right, err := i.evaluate(be.Right())
-	if err != nil {
-		return nil, err
-	}
+func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
+	left := i.evaluate(be.Left())
+	right := i.evaluate(be.Right())
 	operator := be.Operator()
 
 	// can compare any type with == or != and don't need to type check
 	switch operator.GetType() {
 	case token.EQUAL_EQUAL:
-		return left == right, nil
+		return left == right
 	case token.BANG_EQUAL:
-		return left != right, nil
+		return left != right
 	}
 
 	// for non-comparisons, types must match
@@ -197,43 +181,43 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) (any, erro
 			if r, ok := right.(float64); ok {
 				switch operator.GetType() {
 				case token.MINUS:
-					return l - r, nil
+					return l - r
 				case token.PLUS:
-					return l + r, nil
+					return l + r
 				case token.SLASH:
-					return l / r, nil
+					return l / r
 				case token.STAR:
-					return l * r, nil
+					return l * r
 				case token.GREATER:
-					return l > r, nil
+					return l > r
 				case token.GREATER_EQUAL:
-					return l >= r, nil
+					return l >= r
 				case token.LESS:
-					return l < r, nil
+					return l < r
 				case token.LESS_EQUAL:
-					return l <= r, nil
+					return l <= r
 				}
 			}
-			return nil, lox_error.RuntimeError(operator, "Operands are of different type")
+			panic(lox_error.RuntimeError(operator, "Operands are of different type"))
 		}
 	case string:
 		{
 			if r, ok := right.(string); ok {
 				switch operator.GetType() {
 				case token.PLUS:
-					return l + r, nil
+					return l + r
 				case token.EQUAL_EQUAL:
-					return l == r, nil
+					return l == r
 				case token.BANG_EQUAL:
-					return l != r, nil
+					return l != r
 				}
 			}
-			return nil, lox_error.RuntimeError(operator, "Operands are of different type")
+			panic(lox_error.RuntimeError(operator, "Operands are of different type"))
 		}
 	}
 
 	// Unreachable
-	return nil, lox_error.RuntimeError(operator, "Unreachable")
+	panic(lox_error.RuntimeError(operator, "Unreachable"))
 }
 
 func isTruthy(value any) bool {

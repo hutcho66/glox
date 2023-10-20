@@ -10,15 +10,15 @@ import (
 type Statement interface {
 	statement() bool
 	String() string
-	Accept(StatementVisitor) error
+	Accept(StatementVisitor)
 }
 
 type StatementVisitor interface {
-	VisitExpressionStatement(*ExpressionStatement) error
-	VisitPrintStatement(*PrintStatement) error
-	VisitVarStatement(*VarStatement) error
-	VisitBlockStatement(*BlockStatement) error
-	VisitIfStatement(*IfStatement) error
+	VisitExpressionStatement(*ExpressionStatement)
+	VisitPrintStatement(*PrintStatement)
+	VisitVarStatement(*VarStatement)
+	VisitBlockStatement(*BlockStatement)
+	VisitIfStatement(*IfStatement)
 }
 
 type ExpressionStatement struct {
@@ -43,8 +43,8 @@ func (s ExpressionStatement) Expr() Expression {
 	return s.expr
 }
 
-func (s *ExpressionStatement) Accept(v StatementVisitor) error {
-	return v.VisitExpressionStatement(s)
+func (s *ExpressionStatement) Accept(v StatementVisitor) {
+	v.VisitExpressionStatement(s)
 }
 
 type PrintStatement struct {
@@ -69,8 +69,8 @@ func (s PrintStatement) Expr() Expression {
 	return s.expr
 }
 
-func (s *PrintStatement) Accept(v StatementVisitor) error {
-	return v.VisitPrintStatement(s)
+func (s *PrintStatement) Accept(v StatementVisitor) {
+	v.VisitPrintStatement(s)
 }
 
 type VarStatement struct {
@@ -101,8 +101,8 @@ func (s VarStatement) Name() token.Token {
 	return s.name
 }
 
-func (s *VarStatement) Accept(v StatementVisitor) error {
-	return v.VisitVarStatement(s)
+func (s *VarStatement) Accept(v StatementVisitor) {
+	v.VisitVarStatement(s)
 }
 
 type BlockStatement struct {
@@ -133,8 +133,8 @@ func (s BlockStatement) Statements() []Statement {
 	return s.statements
 }
 
-func (s *BlockStatement) Accept(v StatementVisitor) error {
-	return v.VisitBlockStatement(s)
+func (s *BlockStatement) Accept(v StatementVisitor) {
+	v.VisitBlockStatement(s)
 }
 
 type IfStatement struct {
@@ -170,6 +170,6 @@ func (s IfStatement) Alternative() Statement {
 	return s.alternative
 }
 
-func (s *IfStatement) Accept(v StatementVisitor) error {
-	return v.VisitIfStatement(s)
+func (s *IfStatement) Accept(v StatementVisitor) {
+	v.VisitIfStatement(s)
 }
