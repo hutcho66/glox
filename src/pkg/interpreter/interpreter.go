@@ -27,7 +27,15 @@ func NewInterpreter() *Interpreter {
 	}
 }
 
-func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
+func (i *Interpreter) Interpret(statements []ast.Statement) (value any, ok bool) {
+	defer func() {
+		// catch any errors
+		if err := recover(); err != nil {
+			ok = false
+			return
+		}
+	}()
+
 	for idx, s := range statements {
 		if len(statements) >= 1 && idx == len(statements)-1 {
 			if es, ok := s.(*ast.ExpressionStatement); ok {
@@ -47,28 +55,11 @@ func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
 }
 
 func (i *Interpreter) execute(s ast.Statement) (ok bool) {
-	// catch any panics and suppress, returning ok=false
-	defer func() {
-		if err := recover(); err != nil {
-			ok = false
-			return
-		}
-	}()
-
 	s.Accept(i)
 	return true
 }
 
 func (i *Interpreter) executeFinalExpressionStatement(s *ast.ExpressionStatement) (result any, ok bool) {
-	// catch any panics and suppress, returning ok=false
-	defer func() {
-		if err := recover(); err != nil {
-			result = nil
-			ok = false
-			return
-		}
-	}()
-
 	// instead of using ExpressionStatement visitor which returns nil,
 	// visit the Expression itself
 	return s.Expr().Accept(i), true
@@ -120,6 +111,21 @@ func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
 	}
 
 	i.environment.define(s.Name().GetLexeme(), value)
+}
+
+func (i *Interpreter) VisitFunctionStatement(s *ast.FunctionStatement) {
+	function := NewLoxFunction(s, i.environment)
+	i.environment.define(s.Name().GetLexeme(), function)
+}
+
+func (i *Interpreter) VisitReturnStatement(s *ast.ReturnStatement) {
+	var value any = nil
+	if s.Value() != nil {
+		value = i.evaluate(s.Value())
+	}
+
+	// Using panic to wind back call stack
+	panic(NewLoxReturn(value))
 }
 
 func (i *Interpreter) evaluate(e ast.Expression) any {
@@ -244,6 +250,10 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 	panic(lox_error.RuntimeError(operator, "Unreachable"))
 }
 
+func (i *Interpreter) VisitLambdaExpression(e *ast.LambdaExpression) any {
+	return NewLoxFunction(e.Function(), i.environment)
+}
+
 func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
 	callee := i.evaluate(e.Callee())
 	argValues := []any{}
@@ -285,6 +295,8 @@ func Stringify(v any) string {
 			}
 			return fmt.Sprintf("%f", v)
 		}
+	case LoxCallable:
+		return v.String()
 	}
 
 	return "unprintable object"

@@ -7,24 +7,24 @@ import (
 
 type Environment struct {
 	enclosing *Environment
-	values map[string]any
+	values    map[string]any
 }
 
 func NewEnvironment() *Environment {
 	return &Environment{
 		enclosing: nil,
-		values: map[string]any{},
+		values:    map[string]any{},
 	}
 }
 
 func NewEnclosingEnvironment(enclosing *Environment) *Environment {
 	return &Environment{
 		enclosing: enclosing,
-		values: map[string]any{},
+		values:    map[string]any{},
 	}
 }
 
-func (e *Environment) get(name token.Token) (any, error) {
+func (e *Environment) get(name *token.Token) (any, error) {
 	if val, ok := e.values[name.GetLexeme()]; ok {
 		return val, nil
 	}
@@ -33,17 +33,17 @@ func (e *Environment) get(name token.Token) (any, error) {
 		return e.enclosing.get(name)
 	}
 
-	return nil, lox_error.RuntimeError(name, "Undefined variable '" + name.GetLexeme() + "'");
+	return nil, lox_error.RuntimeError(name, "Undefined variable '"+name.GetLexeme()+"'")
 }
 
 func (e *Environment) define(name string, value any) {
 	e.values[name] = value
 }
 
-func (e *Environment) assign(name token.Token, value any) error {
+func (e *Environment) assign(name *token.Token, value any) error {
 	if _, ok := e.values[name.GetLexeme()]; ok {
-		e.values[name.GetLexeme()] = value;
-		return nil;
+		e.values[name.GetLexeme()] = value
+		return nil
 	}
 
 	if e.enclosing != nil {
@@ -51,5 +51,5 @@ func (e *Environment) assign(name token.Token, value any) error {
 		return nil
 	}
 
-	return lox_error.RuntimeError(name, "Undefined variable '" + name.GetLexeme() + "'")
+	return lox_error.RuntimeError(name, "Undefined variable '"+name.GetLexeme()+"'")
 }

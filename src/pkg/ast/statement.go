@@ -19,6 +19,8 @@ type StatementVisitor interface {
 	VisitBlockStatement(*BlockStatement)
 	VisitIfStatement(*IfStatement)
 	VisitWhileStatement(*WhileStatement)
+	VisitFunctionStatement(*FunctionStatement)
+	VisitReturnStatement(*ReturnStatement)
 }
 
 type ExpressionStatement struct {
@@ -48,11 +50,11 @@ func (s *ExpressionStatement) Accept(v StatementVisitor) {
 }
 
 type VarStatement struct {
-	name        token.Token
+	name        *token.Token
 	initializer Expression
 }
 
-func NewVarStatement(name token.Token, initializer Expression) *VarStatement {
+func NewVarStatement(name *token.Token, initializer Expression) *VarStatement {
 	return &VarStatement{
 		name:        name,
 		initializer: initializer,
@@ -71,7 +73,7 @@ func (s VarStatement) Initializer() Expression {
 	return s.initializer
 }
 
-func (s VarStatement) Name() token.Token {
+func (s VarStatement) Name() *token.Token {
 	return s.name
 }
 
@@ -178,4 +180,82 @@ func (s WhileStatement) Body() Statement {
 
 func (s *WhileStatement) Accept(v StatementVisitor) {
 	v.VisitWhileStatement(s)
+}
+
+type FunctionStatement struct {
+	name   *token.Token
+	params []*token.Token
+	body   []Statement
+}
+
+func NewFunctionStatement(name *token.Token, params []*token.Token, body []Statement) *FunctionStatement {
+	return &FunctionStatement{
+		name:   name,
+		params: params,
+		body:   body,
+	}
+}
+
+func (FunctionStatement) statement() bool {
+	return true
+}
+
+func (s FunctionStatement) String() string {
+	paramStrs := []string{}
+	for _, param := range s.params {
+		paramStrs = append(paramStrs, param.GetLexeme())
+	}
+	statementStrings := []string{}
+	for _, statement := range s.body {
+		statementStrings = append(statementStrings, "\t"+statement.String())
+	}
+	return fmt.Sprintf("fun %s (%s) {\n%s\n}", s.name.GetLexeme(), strings.Join(paramStrs, ", "), strings.Join(statementStrings, "\n"))
+}
+
+func (s FunctionStatement) Name() *token.Token {
+	return s.name
+}
+
+func (s FunctionStatement) Parameters() []*token.Token {
+	return s.params
+}
+
+func (s FunctionStatement) Body() []Statement {
+	return s.body
+}
+
+func (s *FunctionStatement) Accept(v StatementVisitor) {
+	v.VisitFunctionStatement(s)
+}
+
+type ReturnStatement struct {
+	keyword *token.Token
+	value   Expression
+}
+
+func NewReturnStatement(keyword *token.Token, value Expression) *ReturnStatement {
+	return &ReturnStatement{
+		keyword: keyword,
+		value:   value,
+	}
+}
+
+func (ReturnStatement) statement() bool {
+	return true
+}
+
+func (s ReturnStatement) String() string {
+	return "return " + s.value.String()
+}
+
+func (s ReturnStatement) Keyword() *token.Token {
+	return s.keyword
+}
+
+func (s ReturnStatement) Value() Expression {
+	return s.value
+}
+
+func (s *ReturnStatement) Accept(v StatementVisitor) {
+	v.VisitReturnStatement(s)
 }

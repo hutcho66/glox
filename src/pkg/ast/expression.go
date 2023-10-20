@@ -22,14 +22,15 @@ type ExpressionVisitor interface {
 	VisitVariableExpression(*VariableExpression) any
 	VisitAssignmentExpression(*AssignmentExpression) any
 	VisitCallExpression(*CallExpression) any
+	VisitLambdaExpression(*LambdaExpression) any
 }
 
 type BinaryExpression struct {
 	left, right Expression
-	operator    token.Token
+	operator    *token.Token
 }
 
-func NewBinaryExpression(left Expression, operator token.Token, right Expression) Expression {
+func NewBinaryExpression(left Expression, operator *token.Token, right Expression) Expression {
 	return &BinaryExpression{
 		left:     left,
 		right:    right,
@@ -58,16 +59,16 @@ func (b BinaryExpression) Right() Expression {
 	return b.right
 }
 
-func (b BinaryExpression) Operator() token.Token {
+func (b BinaryExpression) Operator() *token.Token {
 	return b.operator
 }
 
 type LogicalExpression struct {
 	left, right Expression
-	operator    token.Token
+	operator    *token.Token
 }
 
-func NewLogicalExpression(left Expression, operator token.Token, right Expression) Expression {
+func NewLogicalExpression(left Expression, operator *token.Token, right Expression) Expression {
 	return &LogicalExpression{
 		left:     left,
 		right:    right,
@@ -96,16 +97,16 @@ func (b LogicalExpression) Right() Expression {
 	return b.right
 }
 
-func (b LogicalExpression) Operator() token.Token {
+func (b LogicalExpression) Operator() *token.Token {
 	return b.operator
 }
 
 type UnaryExpression struct {
 	expr     Expression
-	operator token.Token
+	operator *token.Token
 }
 
-func NewUnaryExpression(operator token.Token, expr Expression) Expression {
+func NewUnaryExpression(operator *token.Token, expr Expression) Expression {
 	return &UnaryExpression{
 		expr:     expr,
 		operator: operator,
@@ -129,7 +130,7 @@ func (u UnaryExpression) Expression() Expression {
 	return u.expr
 }
 
-func (u UnaryExpression) Operator() token.Token {
+func (u UnaryExpression) Operator() *token.Token {
 	return u.operator
 }
 
@@ -199,10 +200,10 @@ func (l LiteralExpression) Value() any {
 }
 
 type VariableExpression struct {
-	name token.Token
+	name *token.Token
 }
 
-func NewVariableExpression(name token.Token) Expression {
+func NewVariableExpression(name *token.Token) Expression {
 	return &VariableExpression{
 		name: name,
 	}
@@ -221,16 +222,16 @@ func (e *VariableExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitVariableExpression(e)
 }
 
-func (e VariableExpression) Name() token.Token {
+func (e VariableExpression) Name() *token.Token {
 	return e.name
 }
 
 type AssignmentExpression struct {
-	name  token.Token
+	name  *token.Token
 	value Expression
 }
 
-func NewAssignmentExpression(name token.Token, value Expression) Expression {
+func NewAssignmentExpression(name *token.Token, value Expression) Expression {
 	return &AssignmentExpression{
 		name:  name,
 		value: value,
@@ -250,7 +251,7 @@ func (e *AssignmentExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitAssignmentExpression(e)
 }
 
-func (e AssignmentExpression) Name() token.Token {
+func (e AssignmentExpression) Name() *token.Token {
 	return e.name
 }
 
@@ -261,10 +262,10 @@ func (e AssignmentExpression) Value() Expression {
 type CallExpression struct {
 	callee       Expression
 	arguments    []Expression
-	closingParen token.Token
+	closingParen *token.Token
 }
 
-func NewCallExpression(callee Expression, arguments []Expression, closingParen token.Token) Expression {
+func NewCallExpression(callee Expression, arguments []Expression, closingParen *token.Token) Expression {
 	return &CallExpression{
 		callee:       callee,
 		arguments:    arguments,
@@ -289,7 +290,7 @@ func (e *CallExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitCallExpression(e)
 }
 
-func (e CallExpression) ClosingParen() token.Token {
+func (e CallExpression) ClosingParen() *token.Token {
 	return e.closingParen
 }
 
@@ -299,4 +300,45 @@ func (e CallExpression) Callee() Expression {
 
 func (e CallExpression) Arguments() []Expression {
 	return e.arguments
+}
+
+type LambdaExpression struct {
+	openingParen *token.Token
+	function     *FunctionStatement
+}
+
+func NewLambdaExpression(openingParen *token.Token, function *FunctionStatement) Expression {
+	return &LambdaExpression{
+		openingParen: openingParen,
+		function:     function,
+	}
+}
+
+// LambdaExpression implements Expression
+func (LambdaExpression) expression() bool {
+	return true
+}
+
+func (e LambdaExpression) String() string {
+	paramStrs := []string{}
+	for _, param := range e.function.params {
+		paramStrs = append(paramStrs, param.GetLexeme())
+	}
+	statementStrings := []string{}
+	for _, statement := range e.function.body {
+		statementStrings = append(statementStrings, "\t"+statement.String())
+	}
+	return fmt.Sprintf("fun (%s) {\n%s\n}", strings.Join(paramStrs, ", "), strings.Join(statementStrings, "\n"))
+}
+
+func (e *LambdaExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitLambdaExpression(e)
+}
+
+func (e LambdaExpression) OpeningParen() *token.Token {
+	return e.openingParen
+}
+
+func (e LambdaExpression) Function() *FunctionStatement {
+	return e.function
 }

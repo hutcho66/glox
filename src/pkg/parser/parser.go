@@ -20,8 +20,10 @@ func NewParser(tokens []token.Token) *Parser {
 
 func (p *Parser) Parse() []ast.Statement {
 	statements := []ast.Statement{}
-	for !p.isAtEnd() && !p.check(token.NEW_LINE) {
-		statements = append(statements, p.declaration())
+	for !p.isAtEnd() {
+		if !p.match(token.NEW_LINE) {
+			statements = append(statements, p.declaration())
+		}
 	}
 
 	return statements
@@ -40,12 +42,13 @@ func (p *Parser) declaration() (declaration ast.Statement) {
 	}()
 
 	if p.match(token.VAR) {
-		declaration = p.varDeclaration()
+		return p.varDeclaration()
+	} else if p.match(token.FUN) {
+		return p.funDeclaration("function")
 	} else {
-		declaration = p.statement()
+		return p.statement()
 	}
 
-	return
 }
 
 func (p *Parser) varDeclaration() ast.Statement {
@@ -61,7 +64,32 @@ func (p *Parser) varDeclaration() ast.Statement {
 	return ast.NewVarStatement(name, initializer)
 }
 
+func (p *Parser) funDeclaration(kind string) ast.Statement {
+	name := p.consume(token.IDENTIFIER, "Expect "+kind+" name")
+	p.consume(token.LEFT_PAREN, "Expect '(' after "+kind+" name")
+	parameters := []*token.Token{}
+	if !p.check(token.RIGHT_PAREN) {
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			if len(parameters) >= 255 {
+				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+			}
+
+			parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
+		}
+	}
+	p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
+
+	p.consume(token.LEFT_BRACE, "Expect '{' before "+kind+" body")
+	body := p.block()
+
+	return ast.NewFunctionStatement(name, parameters, body)
+}
+
 func (p *Parser) statement() ast.Statement {
+	if p.match(token.RETURN) {
+		return p.returnStatement()
+	}
+
 	if p.match(token.IF) {
 		return p.ifStatement()
 	}
@@ -85,12 +113,25 @@ func (p *Parser) block() []ast.Statement {
 	statements := []ast.Statement{}
 
 	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
-		statement := p.declaration()
-		statements = append(statements, statement)
+		if !p.match(token.NEW_LINE) {
+			statement := p.declaration()
+			statements = append(statements, statement)
+		}
 	}
 
 	p.consume(token.RIGHT_BRACE, "Expect '}' after block")
 	return statements
+}
+
+func (p *Parser) returnStatement() ast.Statement {
+	keyword := p.previous()
+	var value ast.Expression = nil
+	if !p.check(token.SEMICOLON) && !p.check(token.NEW_LINE) {
+		value = p.expression()
+	}
+
+	p.endStatement()
+	return ast.NewReturnStatement(keyword, value)
 }
 
 func (p *Parser) ifStatement() ast.Statement {
@@ -314,6 +355,19 @@ func (p *Parser) primary() ast.Expression {
 		return ast.NewVariableExpression(p.previous())
 	}
 	if p.match(token.LEFT_PAREN) {
+		if p.check(token.RIGHT_PAREN) {
+			// must be lambda with no params, empty group expression is invalid
+			return p.lambda()
+		}
+
+		if p.check(token.IDENTIFIER) {
+			// if next is comma, must be lambda
+			if p.checkAhead(token.COMMA, 1) || p.checkAhead(token.RIGHT_PAREN, 1) && p.checkAhead(token.LAMBDA_ARROW, 2) {
+				return p.lambda()
+			}
+		}
+
+		// must be group expression
 		expr := p.expression()
 		p.consume(token.RIGHT_PAREN, "Expect ')' after expression.")
 
@@ -321,6 +375,41 @@ func (p *Parser) primary() ast.Expression {
 	}
 
 	panic(lox_error.ParserError(p.peek(), "Expect expression."))
+}
+
+func (p *Parser) lambda() ast.Expression {
+	openingParen := p.previous()
+	parameters := []*token.Token{}
+	if !p.check(token.RIGHT_PAREN) {
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			if len(parameters) >= 255 {
+				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+			}
+
+			parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
+		}
+	}
+	p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
+
+	p.consume(token.LAMBDA_ARROW, "Expect '=>' after lambda parameters")
+
+	var body []ast.Statement
+	if p.match(token.LEFT_BRACE) {
+		// block lambda
+		body = p.block()
+	} else {
+		line := p.peek().GetLine()
+		expression := p.expression()
+		// add implicit return statement
+		token := token.NewToken(token.RETURN, "return", nil, line)
+		body = []ast.Statement{
+			ast.NewReturnStatement(token, expression),
+		}
+	}
+
+	function := ast.NewFunctionStatement(nil, parameters, body)
+
+	return ast.NewLambdaExpression(openingParen, function)
 }
 
 func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
@@ -338,7 +427,7 @@ func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
 	return ast.NewCallExpression(callee, args, closingParen)
 }
 
-func (p *Parser) consume(tokenType token.TokenType, message string) token.Token {
+func (p *Parser) consume(tokenType token.TokenType, message string) *token.Token {
 	if p.check(tokenType) {
 		return p.advance()
 	}
@@ -349,7 +438,7 @@ func (p *Parser) consume(tokenType token.TokenType, message string) token.Token 
 
 func (p *Parser) endStatement() {
 	// Must have at least one semicolon or newline to terminate a statement
-	if terminated := p.match(token.SEMICOLON, token.NEW_LINE); !terminated {
+	if terminated := p.match(token.SEMICOLON, token.NEW_LINE); !terminated && !p.isAtEnd() {
 		panic(lox_error.ParserError(p.peek(), "Improperly terminated statement"))
 	}
 
@@ -376,7 +465,15 @@ func (p *Parser) check(tokenType token.TokenType) bool {
 	return p.peek().GetType() == tokenType
 }
 
-func (p *Parser) advance() token.Token {
+func (p *Parser) checkAhead(tokenType token.TokenType, lookahead int) bool {
+	position := p.current + lookahead
+	if position >= len(p.tokens) {
+		return false
+	}
+	return p.tokens[position].GetType() == tokenType
+}
+
+func (p *Parser) advance() *token.Token {
 	if !p.isAtEnd() {
 		p.current++
 	}
@@ -387,12 +484,12 @@ func (p *Parser) isAtEnd() bool {
 	return p.peek().GetType() == token.EOF
 }
 
-func (p *Parser) peek() token.Token {
-	return p.tokens[p.current]
+func (p *Parser) peek() *token.Token {
+	return &p.tokens[p.current]
 }
 
-func (p *Parser) previous() token.Token {
-	return p.tokens[p.current-1]
+func (p *Parser) previous() *token.Token {
+	return &p.tokens[p.current-1]
 }
 
 func (p *Parser) synchronize() {
