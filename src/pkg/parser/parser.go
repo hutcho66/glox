@@ -70,6 +70,14 @@ func (p *Parser) statement() ast.Statement {
 		return p.ifStatement()
 	}
 
+	if p.match(token.WHILE) {
+		return p.whileStatement()
+	}
+
+	if p.match(token.FOR) {
+		return p.forStatement()
+	}
+
 	if p.match(token.LEFT_BRACE) {
 		return ast.NewBlockStatement(p.block())
 	}
@@ -101,6 +109,68 @@ func (p *Parser) ifStatement() ast.Statement {
 	}
 
 	return ast.NewIfStatement(condition, consequence, alternative)
+}
+
+func (p *Parser) whileStatement() ast.Statement {
+	p.consume(token.LEFT_PAREN, "Expect '(' after 'while'")
+	condition := p.expression()
+	p.consume(token.RIGHT_PAREN, "Expect ')' after while condition")
+
+	body := p.statement()
+
+	return ast.NewWhileStatement(condition, body)
+}
+
+func (p *Parser) forStatement() ast.Statement {
+	p.consume(token.LEFT_PAREN, "Expect '(' after 'for'")
+
+	var initializer ast.Statement
+	if p.match(token.SEMICOLON) {
+		initializer = nil
+	} else if p.match(token.VAR) {
+		initializer = p.varDeclaration()
+	} else {
+		initializer = p.expressionStatement()
+	}
+
+	var condition ast.Expression = nil
+	if !p.check(token.SEMICOLON) {
+		condition = p.expression()
+	}
+	p.consume(token.SEMICOLON, "Expect ';' after loop condition")
+
+	var increment ast.Expression = nil
+	if !p.check(token.RIGHT_PAREN) {
+		increment = p.expression()
+	}
+	p.consume(token.RIGHT_PAREN, "Expect ')' after for clauses")
+
+	body := p.statement()
+
+	if increment != nil {
+		// if there is an increment, add expression to end of body to execute the increment expression
+		body = ast.NewBlockStatement([]ast.Statement{
+			body,
+			ast.NewExpressionStatement(increment),
+		})
+	}
+
+	if condition == nil {
+		// if there is no condition, set it to 'true' to make infinite loop
+		condition = ast.NewLiteralExpression(true)
+	}
+	// create WhileStatement using condition and body
+	body = ast.NewWhileStatement(condition, body)
+
+	// if there is an initializer, add before while statement
+	if initializer != nil {
+		body = ast.NewBlockStatement([]ast.Statement{
+			initializer,
+			body,
+		})
+	}
+
+	return body
 }
 
 func (p *Parser) printStatement() ast.Statement {

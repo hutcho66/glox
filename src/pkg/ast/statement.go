@@ -19,6 +19,7 @@ type StatementVisitor interface {
 	VisitVarStatement(*VarStatement)
 	VisitBlockStatement(*BlockStatement)
 	VisitIfStatement(*IfStatement)
+	VisitWhileStatement(*WhileStatement)
 }
 
 type ExpressionStatement struct {
@@ -172,4 +173,36 @@ func (s IfStatement) Alternative() Statement {
 
 func (s *IfStatement) Accept(v StatementVisitor) {
 	v.VisitIfStatement(s)
+}
+
+type WhileStatement struct {
+	condition Expression
+	body      Statement
+}
+
+func NewWhileStatement(condition Expression, body Statement) *WhileStatement {
+	return &WhileStatement{
+		condition: condition,
+		body:      body,
+	}
+}
+
+func (WhileStatement) statement() bool {
+	return true
+}
+
+func (s WhileStatement) String() string {
+	return fmt.Sprintf("while (%s) %s", s.condition.String(), s.body.String())
+}
+
+func (s WhileStatement) Condition() Expression {
+	return s.condition
+}
+
+func (s WhileStatement) Body() Statement {
+	return s.body
+}
+
+func (s *WhileStatement) Accept(v StatementVisitor) {
+	v.VisitWhileStatement(s)
 }

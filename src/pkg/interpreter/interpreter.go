@@ -83,6 +83,12 @@ func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) {
 	}
 }
 
+func (i *Interpreter) VisitWhileStatement(s *ast.WhileStatement) {
+	for isTruthy(i.evaluate(s.Condition())) {
+		i.execute(s.Body())
+	}
+}
+
 func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) {
 	v := i.evaluate(s.Expr())
 	fmt.Println(Stringify(v))
