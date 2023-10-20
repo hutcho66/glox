@@ -15,7 +15,6 @@ type Statement interface {
 
 type StatementVisitor interface {
 	VisitExpressionStatement(*ExpressionStatement)
-	VisitPrintStatement(*PrintStatement)
 	VisitVarStatement(*VarStatement)
 	VisitBlockStatement(*BlockStatement)
 	VisitIfStatement(*IfStatement)
@@ -46,32 +45,6 @@ func (s ExpressionStatement) Expr() Expression {
 
 func (s *ExpressionStatement) Accept(v StatementVisitor) {
 	v.VisitExpressionStatement(s)
-}
-
-type PrintStatement struct {
-	expr Expression
-}
-
-func NewPrintStatement(expr Expression) *PrintStatement {
-	return &PrintStatement{
-		expr: expr,
-	}
-}
-
-func (PrintStatement) statement() bool {
-	return true
-}
-
-func (s PrintStatement) String() string {
-	return "print " + s.expr.String() + ";"
-}
-
-func (s PrintStatement) Expr() Expression {
-	return s.expr
-}
-
-func (s *PrintStatement) Accept(v StatementVisitor) {
-	v.VisitPrintStatement(s)
 }
 
 type VarStatement struct {

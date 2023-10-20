@@ -54,7 +54,7 @@ unlike the reference lox implementation, in glox, semicolons are optional unless
 
 ```
 > var a = 4 // this is valid
-> a = a + 1; print a // also valid
+> a = a + 1; a // also valid
 5
 > a = 5 b = a // invalid
 [line 1] Error at 'b': Improperly terminated statement
@@ -78,7 +78,7 @@ Note that assignment is an expression but declaration is not.
 Lox has `if`-`else` statements which work like any other language. Then and else statements can be singular statements or block statements.
 
 ```
-> if (6 > 5) print true; else print false;
+> if (6 > 5) print(true); else print(false);
 true
 
 > var x = 5; 
@@ -93,13 +93,13 @@ true
 Lox has C-style `while` and `for` loops. Variables defined in `for` loop initializers are scoped to the loop.
 ```
 > var x = 0;
-> while (x < 2) { print x; x = x+1; }
+> while (x < 2) { print(x); x = x+1; }
 0
 1
 > x
 2
 
-> for (var y = 0; y < 2; y = y+1) print y;
+> for (var y = 0; y < 2; y = y+1) print(y);
 0
 1
 > y

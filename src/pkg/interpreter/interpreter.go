@@ -10,12 +10,20 @@ import (
 )
 
 type Interpreter struct {
+	globals     *Environment
 	environment *Environment
 }
 
 func NewInterpreter() *Interpreter {
+	globals := NewEnvironment()
+
+	// add native functions
+	globals.define("clock", NewClockNative())
+	globals.define("print", NewPrintNative())
+
 	return &Interpreter{
-		environment: NewEnvironment(),
+		globals:     globals,
+		environment: globals,
 	}
 }
 
@@ -102,11 +110,6 @@ func (i *Interpreter) VisitWhileStatement(s *ast.WhileStatement) {
 	for isTruthy(i.evaluate(s.Condition())) {
 		i.execute(s.Body())
 	}
-}
-
-func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) {
-	v := i.evaluate(s.Expr())
-	fmt.Println(Stringify(v))
 }
 
 func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
@@ -239,6 +242,22 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 
 	// Unreachable
 	panic(lox_error.RuntimeError(operator, "Unreachable"))
+}
+
+func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
+	callee := i.evaluate(e.Callee())
+	argValues := []any{}
+	for _, argExpr := range e.Arguments() {
+		argValues = append(argValues, i.evaluate(argExpr))
+	}
+
+	if function, ok := callee.(LoxCallable); ok {
+		if len(argValues) != function.Arity() {
+			panic(lox_error.RuntimeError(e.ClosingParen(), fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(argValues))))
+		}
+		return function.Call(i, argValues)
+	}
+	panic(lox_error.RuntimeError(e.ClosingParen(), "Can only call functions and classes"))
 }
 
 func isTruthy(value any) bool {

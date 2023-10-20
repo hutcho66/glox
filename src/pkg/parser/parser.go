@@ -62,10 +62,6 @@ func (p *Parser) varDeclaration() ast.Statement {
 }
 
 func (p *Parser) statement() ast.Statement {
-	if p.match(token.PRINT) {
-		return p.printStatement()
-	}
-
 	if p.match(token.IF) {
 		return p.ifStatement()
 	}
@@ -171,13 +167,6 @@ func (p *Parser) forStatement() ast.Statement {
 	}
 
 	return body
-}
-
-func (p *Parser) printStatement() ast.Statement {
-	expr := p.expression()
-	p.endStatement()
-
-	return ast.NewPrintStatement(expr)
 }
 
 func (p *Parser) expressionStatement() ast.Statement {
@@ -291,7 +280,21 @@ func (p *Parser) unary() ast.Expression {
 		return ast.NewUnaryExpression(operator, right)
 	}
 
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) call() ast.Expression {
+	expr := p.primary()
+
+	for {
+		if p.match(token.LEFT_PAREN) {
+			expr = p.finishCall(expr)
+		} else {
+			break
+		}
+	}
+
+	return expr
 }
 
 func (p *Parser) primary() ast.Expression {
@@ -318,6 +321,21 @@ func (p *Parser) primary() ast.Expression {
 	}
 
 	panic(lox_error.ParserError(p.peek(), "Expect expression."))
+}
+
+func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
+	args := []ast.Expression{}
+	if !p.check(token.RIGHT_PAREN) {
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			if len(args) >= 255 {
+				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 arguments"))
+			}
+			args = append(args, p.expression())
+		}
+	}
+	closingParen := p.consume(token.RIGHT_PAREN, "Expect ')' after arguments")
+
+	return ast.NewCallExpression(callee, args, closingParen)
 }
 
 func (p *Parser) consume(tokenType token.TokenType, message string) token.Token {
@@ -386,7 +404,7 @@ func (p *Parser) synchronize() {
 		}
 
 		switch p.peek().GetType() {
-		case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.PRINT, token.RETURN:
+		case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.RETURN:
 			return
 		}
 

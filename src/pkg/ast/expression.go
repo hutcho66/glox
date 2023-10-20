@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hutcho66/glox/src/pkg/token"
 )
@@ -20,6 +21,7 @@ type ExpressionVisitor interface {
 	VisitLiteralExpression(*LiteralExpression) any
 	VisitVariableExpression(*VariableExpression) any
 	VisitAssignmentExpression(*AssignmentExpression) any
+	VisitCallExpression(*CallExpression) any
 }
 
 type BinaryExpression struct {
@@ -254,4 +256,47 @@ func (e AssignmentExpression) Name() token.Token {
 
 func (e AssignmentExpression) Value() Expression {
 	return e.value
+}
+
+type CallExpression struct {
+	callee       Expression
+	arguments    []Expression
+	closingParen token.Token
+}
+
+func NewCallExpression(callee Expression, arguments []Expression, closingParen token.Token) Expression {
+	return &CallExpression{
+		callee:       callee,
+		arguments:    arguments,
+		closingParen: closingParen,
+	}
+}
+
+// CallExpression implements Expression
+func (CallExpression) expression() bool {
+	return true
+}
+
+func (e CallExpression) String() string {
+	args := []string{}
+	for _, arg := range e.arguments {
+		args = append(args, arg.String())
+	}
+	return fmt.Sprintf("%s(%s)", e.callee.String(), strings.Join(args, ", "))
+}
+
+func (e *CallExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitCallExpression(e)
+}
+
+func (e CallExpression) ClosingParen() token.Token {
+	return e.closingParen
+}
+
+func (e CallExpression) Callee() Expression {
+	return e.callee
+}
+
+func (e CallExpression) Arguments() []Expression {
+	return e.arguments
 }
