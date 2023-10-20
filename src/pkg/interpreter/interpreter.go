@@ -22,7 +22,7 @@ func NewInterpreter() *Interpreter {
 
 func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
 	for idx, s := range statements {
-		if len(statements) >= 1 && idx == len(statements) - 1 {
+		if len(statements) >= 1 && idx == len(statements)-1 {
 			if es, ok := s.(*ast.ExpressionStatement); ok {
 				// if the last statement is an expression statement, return its value
 				val, err := i.evaluate(es.Expr())
@@ -31,17 +31,17 @@ func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
 				}
 			} else {
 				// execute as normal if not expression statement
-				i.execute(s);
+				i.execute(s)
 			}
 		} else {
-			i.execute(s);
+			i.execute(s)
 		}
 	}
 	return nil, false
 }
 
 func (i *Interpreter) execute(s ast.Statement) error {
-	return s.Accept(i);
+	return s.Accept(i)
 }
 
 func (i *Interpreter) executeBlock(s []ast.Statement, environment *Environment) error {
@@ -64,9 +64,21 @@ func (i *Interpreter) VisitBlockStatement(s *ast.BlockStatement) error {
 	return i.executeBlock(s.Statements(), NewEnclosingEnvironment(i.environment))
 }
 
-func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) (error) {
-	i.evaluate(s.Expr())
-	return nil
+func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) error {
+	_, err := i.evaluate(s.Expr())
+	return err
+}
+
+func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) error {
+	conditionResult, err := i.evaluate(s.Condition())
+	if err == nil && isTruthy(conditionResult) {
+		err = i.execute(s.Consequence())
+	} else if s.Alternative() != nil {
+		err = i.execute(s.Alternative())
+	}
+
+	// err will still be nil if everything succeeded
+	return err
 }
 
 func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) error {
@@ -74,21 +86,22 @@ func (i *Interpreter) VisitPrintStatement(s *ast.PrintStatement) error {
 	if err == nil {
 		fmt.Println(Stringify(v))
 	}
-	return nil
+	return err
 }
 
 func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) error {
-	var value any = nil;
-	var err error = nil;
+	var value any = nil
+	var err error = nil
+
 	if s.Initializer() != nil {
 		value, err = i.evaluate(s.Initializer())
-		if err != nil {
-			return err
-		}
 	}
 
-	i.environment.define(s.Name().GetLexeme(), value);
-	return nil
+	if err != nil {
+		i.environment.define(s.Name().GetLexeme(), value)
+	}
+
+	return err
 }
 
 func (i *Interpreter) evaluate(e ast.Expression) (any, error) {
@@ -96,16 +109,13 @@ func (i *Interpreter) evaluate(e ast.Expression) (any, error) {
 }
 
 func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) (any, error) {
-	value, err := i.evaluate(e.Value());
-	if err != nil {
-		return nil, err
+	value, err := i.evaluate(e.Value())
+
+	if err == nil {
+		err = i.environment.assign(e.Name(), value)
 	}
 
-	err = i.environment.assign(e.Name(), value);
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
+	return value, err
 }
 
 func (i *Interpreter) VisitVariableExpression(e *ast.VariableExpression) (any, error) {
@@ -118,6 +128,25 @@ func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) (any, erro
 
 func (i *Interpreter) VisitGroupedExpression(ge *ast.GroupingExpression) (any, error) {
 	return i.evaluate(ge.Expression())
+}
+
+func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) (any, error) {
+	left, err := i.evaluate(le.Left())
+	if err != nil {
+		return nil, err
+	}
+
+	if le.Operator().GetType() == token.OR {
+		if isTruthy(left) {
+			return left, nil
+		}
+	} else {
+		if !isTruthy(left) {
+			return left, nil
+		}
+	}
+
+	return i.evaluate(le.Right())
 }
 
 func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) (any, error) {
@@ -219,14 +248,18 @@ func isTruthy(value any) bool {
 
 func Stringify(v any) string {
 	switch v := v.(type) {
-		case nil:     return "nil";
-		case string: 	return fmt.Sprint(v);
-		case bool:    return fmt.Sprintf("%t", v);
-		case float64: {
+	case nil:
+		return "nil"
+	case string:
+		return fmt.Sprint(v)
+	case bool:
+		return fmt.Sprintf("%t", v)
+	case float64:
+		{
 			if math.Mod(v, 1.0) == 0 {
-				return fmt.Sprintf("%.0f", v);
+				return fmt.Sprintf("%.0f", v)
 			}
-			return fmt.Sprintf("%f", v);
+			return fmt.Sprintf("%f", v)
 		}
 	}
 

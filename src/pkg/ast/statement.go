@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/hutcho66/glox/src/pkg/token"
@@ -17,6 +18,7 @@ type StatementVisitor interface {
 	VisitPrintStatement(*PrintStatement) error
 	VisitVarStatement(*VarStatement) error
 	VisitBlockStatement(*BlockStatement) error
+	VisitIfStatement(*IfStatement) error
 }
 
 type ExpressionStatement struct {
@@ -42,7 +44,7 @@ func (s ExpressionStatement) Expr() Expression {
 }
 
 func (s *ExpressionStatement) Accept(v StatementVisitor) error {
-	return v.VisitExpressionStatement(s);
+	return v.VisitExpressionStatement(s)
 }
 
 type PrintStatement struct {
@@ -68,17 +70,17 @@ func (s PrintStatement) Expr() Expression {
 }
 
 func (s *PrintStatement) Accept(v StatementVisitor) error {
-	return v.VisitPrintStatement(s);
+	return v.VisitPrintStatement(s)
 }
 
 type VarStatement struct {
-	name token.Token
+	name        token.Token
 	initializer Expression
 }
 
 func NewVarStatement(name token.Token, initializer Expression) *VarStatement {
 	return &VarStatement{
-		name: name,
+		name:        name,
 		initializer: initializer,
 	}
 }
@@ -100,7 +102,7 @@ func (s VarStatement) Name() token.Token {
 }
 
 func (s *VarStatement) Accept(v StatementVisitor) error {
-	return v.VisitVarStatement(s);
+	return v.VisitVarStatement(s)
 }
 
 type BlockStatement struct {
@@ -118,10 +120,10 @@ func (BlockStatement) statement() bool {
 }
 
 func (s BlockStatement) String() string {
-	buf := []string{};
-	buf = append(buf, "{");
+	buf := []string{}
+	buf = append(buf, "{")
 	for _, statement := range s.statements {
-		buf = append(buf, "\t" + statement.String())
+		buf = append(buf, "\t"+statement.String())
 	}
 	buf = append(buf, "}")
 	return strings.Join(buf, "\n")
@@ -132,5 +134,42 @@ func (s BlockStatement) Statements() []Statement {
 }
 
 func (s *BlockStatement) Accept(v StatementVisitor) error {
-	return v.VisitBlockStatement(s);
+	return v.VisitBlockStatement(s)
+}
+
+type IfStatement struct {
+	condition                Expression
+	consequence, alternative Statement
+}
+
+func NewIfStatement(condition Expression, consequence, alternative Statement) *IfStatement {
+	return &IfStatement{
+		condition:   condition,
+		consequence: consequence,
+		alternative: alternative,
+	}
+}
+
+func (IfStatement) statement() bool {
+	return true
+}
+
+func (s IfStatement) String() string {
+	return fmt.Sprintf("if (%s) %s else %s", s.condition.String(), s.consequence.String(), s.alternative.String())
+}
+
+func (s IfStatement) Condition() Expression {
+	return s.condition
+}
+
+func (s IfStatement) Consequence() Statement {
+	return s.consequence
+}
+
+func (s IfStatement) Alternative() Statement {
+	return s.alternative
+}
+
+func (s *IfStatement) Accept(v StatementVisitor) error {
+	return v.VisitIfStatement(s)
 }

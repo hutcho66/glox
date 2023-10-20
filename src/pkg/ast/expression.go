@@ -14,6 +14,7 @@ type Expression interface {
 
 type ExpressionVisitor interface {
 	VisitBinaryExpression(*BinaryExpression) (any, error)
+	VisitLogicalExpression(*LogicalExpression) (any, error)
 	VisitGroupedExpression(*GroupingExpression) (any, error)
 	VisitUnaryExpression(*UnaryExpression) (any, error)
 	VisitLiteralExpression(*LiteralExpression) (any, error)
@@ -23,28 +24,28 @@ type ExpressionVisitor interface {
 
 type BinaryExpression struct {
 	left, right Expression
-	operator token.Token
+	operator    token.Token
 }
 
 func NewBinaryExpression(left Expression, operator token.Token, right Expression) Expression {
 	return &BinaryExpression{
-		left: left,
-		right: right,
+		left:     left,
+		right:    right,
 		operator: operator,
-	};
+	}
 }
 
 // BinaryExpression implements Expression
 func (BinaryExpression) expression() bool {
-	return true;
+	return true
 }
 
 func (b BinaryExpression) String() string {
-	return fmt.Sprintf("%s %s %s", b.left, b.operator.GetLexeme(), b.right);
+	return fmt.Sprintf("%s %s %s", b.left, b.operator.GetLexeme(), b.right)
 }
 
 func (b *BinaryExpression) Accept(v ExpressionVisitor) (any, error) {
-	return v.VisitBinaryExpression(b);
+	return v.VisitBinaryExpression(b)
 }
 
 func (b BinaryExpression) Left() Expression {
@@ -59,25 +60,63 @@ func (b BinaryExpression) Operator() token.Token {
 	return b.operator
 }
 
+type LogicalExpression struct {
+	left, right Expression
+	operator    token.Token
+}
+
+func NewLogicalExpression(left Expression, operator token.Token, right Expression) Expression {
+	return &LogicalExpression{
+		left:     left,
+		right:    right,
+		operator: operator,
+	}
+}
+
+// LogicalExpression implements Expression
+func (LogicalExpression) expression() bool {
+	return true
+}
+
+func (b LogicalExpression) String() string {
+	return fmt.Sprintf("%s %s %s", b.left, b.operator.GetLexeme(), b.right)
+}
+
+func (b *LogicalExpression) Accept(v ExpressionVisitor) (any, error) {
+	return v.VisitLogicalExpression(b)
+}
+
+func (b LogicalExpression) Left() Expression {
+	return b.left
+}
+
+func (b LogicalExpression) Right() Expression {
+	return b.right
+}
+
+func (b LogicalExpression) Operator() token.Token {
+	return b.operator
+}
+
 type UnaryExpression struct {
-	expr Expression
+	expr     Expression
 	operator token.Token
 }
 
 func NewUnaryExpression(operator token.Token, expr Expression) Expression {
 	return &UnaryExpression{
-		expr: expr,
+		expr:     expr,
 		operator: operator,
-	};
+	}
 }
 
 // UnaryExpression implements Expression
 func (UnaryExpression) expression() bool {
-	return true;
+	return true
 }
 
 func (u UnaryExpression) String() string {
-	return fmt.Sprintf("%s%s", u.operator.GetLexeme(), u.expr);
+	return fmt.Sprintf("%s%s", u.operator.GetLexeme(), u.expr)
 }
 
 func (u *UnaryExpression) Accept(v ExpressionVisitor) (any, error) {
@@ -99,16 +138,16 @@ type GroupingExpression struct {
 func NewGroupingExpression(expr Expression) Expression {
 	return &GroupingExpression{
 		expr: expr,
-	};
+	}
 }
 
 // GroupingExpression implements Expression
 func (GroupingExpression) expression() bool {
-	return true;
+	return true
 }
 
 func (g GroupingExpression) String() string {
-	return fmt.Sprintf("(%s)", g.expr);
+	return fmt.Sprintf("(%s)", g.expr)
 }
 
 func (g *GroupingExpression) Accept(v ExpressionVisitor) (any, error) {
@@ -116,7 +155,7 @@ func (g *GroupingExpression) Accept(v ExpressionVisitor) (any, error) {
 }
 
 func (g *GroupingExpression) Expression() Expression {
-	return g.expr;
+	return g.expr
 }
 
 type LiteralExpression struct {
@@ -126,30 +165,35 @@ type LiteralExpression struct {
 func NewLiteralExpression(value any) Expression {
 	return &LiteralExpression{
 		value: value,
-	};
+	}
 }
 
 // LiteralExpression implements Expression
 func (LiteralExpression) expression() bool {
-	return true;
+	return true
 }
 
 func (l LiteralExpression) String() string {
 	switch v := l.value.(type) {
-		case float64: return fmt.Sprintf("%.2f", v);
-		case bool:    return fmt.Sprintf("%t", v);
-		case nil:     return "nil";
-		case string: 	return v;
-		default: return fmt.Sprintf("%s", v);
+	case float64:
+		return fmt.Sprintf("%.2f", v)
+	case bool:
+		return fmt.Sprintf("%t", v)
+	case nil:
+		return "nil"
+	case string:
+		return v
+	default:
+		return fmt.Sprintf("%s", v)
 	}
 }
 
 func (l *LiteralExpression) Accept(v ExpressionVisitor) (any, error) {
-	return v.VisitLiteralExpression(l);
+	return v.VisitLiteralExpression(l)
 }
 
 func (l LiteralExpression) Value() any {
-	return l.value;
+	return l.value
 }
 
 type VariableExpression struct {
@@ -159,12 +203,12 @@ type VariableExpression struct {
 func NewVariableExpression(name token.Token) Expression {
 	return &VariableExpression{
 		name: name,
-	};
+	}
 }
 
 // VariableExpression implements Expression
 func (VariableExpression) expression() bool {
-	return true;
+	return true
 }
 
 func (e VariableExpression) String() string {
@@ -172,28 +216,28 @@ func (e VariableExpression) String() string {
 }
 
 func (e *VariableExpression) Accept(v ExpressionVisitor) (any, error) {
-	return v.VisitVariableExpression(e);
+	return v.VisitVariableExpression(e)
 }
 
 func (e VariableExpression) Name() token.Token {
-	return e.name;
+	return e.name
 }
 
 type AssignmentExpression struct {
-	name token.Token
+	name  token.Token
 	value Expression
 }
 
 func NewAssignmentExpression(name token.Token, value Expression) Expression {
 	return &AssignmentExpression{
-		name: name,
+		name:  name,
 		value: value,
-	};
+	}
 }
 
 // AssignmentExpression implements Expression
 func (AssignmentExpression) expression() bool {
-	return true;
+	return true
 }
 
 func (e AssignmentExpression) String() string {
@@ -201,13 +245,13 @@ func (e AssignmentExpression) String() string {
 }
 
 func (e *AssignmentExpression) Accept(v ExpressionVisitor) (any, error) {
-	return v.VisitAssignmentExpression(e);
+	return v.VisitAssignmentExpression(e)
 }
 
 func (e AssignmentExpression) Name() token.Token {
-	return e.name;
+	return e.name
 }
 
 func (e AssignmentExpression) Value() Expression {
-	return e.value;
+	return e.value
 }
