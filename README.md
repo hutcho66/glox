@@ -52,7 +52,7 @@ Lox programs are a sequence of statements. In lox, statements are **not** expres
 hence do not have a value. In the reference lox implementation, statements must be terminated with semicolons. However,
 unlike the reference lox implementation, in glox, semicolons are optional unless there is multiple statements on a line.
 
-```bash
+```
 > var a = 4 // this is valid
 > a = a + 1; print a // also valid
 5
@@ -65,12 +65,45 @@ line is an expression statement (consists solely of an expression), it the value
 
 Note that assignment is an expression but declaration is not.
 
-```bash
+```
 > 5 + 4; 3 - 2;
 1
 > var a = 5; // declaration is not an expression, so this prints nothing
 > a = 3;     // but assignment is, so this prints the new value of a
 3
+```
+
+### Control Flow and Looping
+
+Lox has `if`-`else` statements which work like any other language. Then and else statements can be singular statements or block statements.
+
+```
+> if (6 > 5) print true; else print false;
+true
+
+> var x = 5; 
+> if (x <= 5) x = x + 1; // assignment in conditional statements is fine
+
+> if (x <= 5) var y = x; // declaration is not allowed in conditional statements
+[line 1] Error at 'var': Expect expression. 
+
+> if (x <= 5) { var y = x; } // this is fine, `y` is scoped to the block
+```
+
+Lox has C-style `while` and `for` loops. Variables defined in `for` loop initializers are scoped to the loop.
+```
+> var x = 0;
+> while (x < 2) { print x; x = x+1; }
+0
+1
+> x
+2
+
+> for (var y = 0; y < 2; y = y+1) print y;
+0
+1
+> y
+[line 1] Error at 'y': Undefined variable 'y'
 ```
 
 ## Usage

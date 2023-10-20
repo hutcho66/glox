@@ -24,7 +24,7 @@ func (i *Interpreter) Interpret(statements []ast.Statement) (any, bool) {
 		if len(statements) >= 1 && idx == len(statements)-1 {
 			if es, ok := s.(*ast.ExpressionStatement); ok {
 				// if the last statement is an expression statement, return its value
-				return i.evaluate(es.Expr()), true
+				return i.executeFinalExpressionStatement(es)
 			} else {
 				// execute as normal if not expression statement
 				i.execute(s)
@@ -49,6 +49,21 @@ func (i *Interpreter) execute(s ast.Statement) (ok bool) {
 
 	s.Accept(i)
 	return true
+}
+
+func (i *Interpreter) executeFinalExpressionStatement(s *ast.ExpressionStatement) (result any, ok bool) {
+	// catch any panics and suppress, returning ok=false
+	defer func() {
+		if err := recover(); err != nil {
+			result = nil
+			ok = false
+			return
+		}
+	}()
+
+	// instead of using ExpressionStatement visitor which returns nil,
+	// visit the Expression itself
+	return s.Expr().Accept(i), true
 }
 
 func (i *Interpreter) executeBlock(s []ast.Statement, environment *Environment) {
