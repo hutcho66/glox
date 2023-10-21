@@ -86,6 +86,11 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 }
 
 func (p *Parser) statement() ast.Statement {
+	if p.match(token.NEW_LINE) {
+		// consume and retry
+		return p.statement()
+	}
+
 	if p.match(token.RETURN) {
 		return p.returnStatement()
 	}
@@ -175,7 +180,8 @@ func (p *Parser) whileStatement() ast.Statement {
 
 	body := p.statement()
 
-	return ast.NewWhileStatement(condition, body)
+	// while statements have no increment
+	return ast.NewLoopStatement(condition, body, nil)
 }
 
 func (p *Parser) forStatement() ast.Statement {
@@ -204,22 +210,14 @@ func (p *Parser) forStatement() ast.Statement {
 
 	body := p.statement()
 
-	if increment != nil {
-		// if there is an increment, add expression to end of body to execute the increment expression
-		body = ast.NewBlockStatement([]ast.Statement{
-			body,
-			ast.NewExpressionStatement(increment),
-		})
-	}
-
 	if condition == nil {
 		// if there is no condition, set it to 'true' to make infinite loop
 		condition = ast.NewLiteralExpression(true)
 	}
-	// create WhileStatement using condition and body
-	body = ast.NewWhileStatement(condition, body)
+	// create LoopStatement using condition, body and increment
+	body = ast.NewLoopStatement(condition, body, increment)
 
-	// if there is an initializer, add before while statement
+	// if there is an initializer, add before loop statement
 	if initializer != nil {
 		body = ast.NewBlockStatement([]ast.Statement{
 			initializer,

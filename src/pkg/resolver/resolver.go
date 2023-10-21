@@ -172,11 +172,14 @@ func (r *Resolver) VisitVarStatement(s *ast.VarStatement) {
 	r.define(s.Name())
 }
 
-func (r *Resolver) VisitWhileStatement(s *ast.WhileStatement) {
+func (r *Resolver) VisitLoopStatement(s *ast.LoopStatement) {
 	r.resolveExpression(s.Condition())
 
 	r.loop = true
 	r.resolveStatement(s.Body())
+	if s.Increment() != nil {
+		r.resolveExpression(s.Increment())
+	}
 	r.loop = false
 }
 

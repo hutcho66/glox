@@ -18,7 +18,7 @@ type StatementVisitor interface {
 	VisitVarStatement(*VarStatement)
 	VisitBlockStatement(*BlockStatement)
 	VisitIfStatement(*IfStatement)
-	VisitWhileStatement(*WhileStatement)
+	VisitLoopStatement(*LoopStatement)
 	VisitFunctionStatement(*FunctionStatement)
 	VisitReturnStatement(*ReturnStatement)
 	VisitBreakStatement(*BreakStatement)
@@ -155,36 +155,42 @@ func (s *IfStatement) Accept(v StatementVisitor) {
 	v.VisitIfStatement(s)
 }
 
-type WhileStatement struct {
+type LoopStatement struct {
 	condition Expression
 	body      Statement
+	increment Expression
 }
 
-func NewWhileStatement(condition Expression, body Statement) *WhileStatement {
-	return &WhileStatement{
+func NewLoopStatement(condition Expression, body Statement, increment Expression) *LoopStatement {
+	return &LoopStatement{
 		condition: condition,
 		body:      body,
+		increment: increment,
 	}
 }
 
-func (WhileStatement) statement() bool {
+func (LoopStatement) statement() bool {
 	return true
 }
 
-func (s WhileStatement) String() string {
-	return fmt.Sprintf("while (%s) %s", s.condition.String(), s.body.String())
+func (s LoopStatement) String() string {
+	return fmt.Sprintf("loop - condition: %s, increment: %s, loop: %s", s.condition.String(), s.increment.String(), s.body.String())
 }
 
-func (s WhileStatement) Condition() Expression {
+func (s LoopStatement) Condition() Expression {
 	return s.condition
 }
 
-func (s WhileStatement) Body() Statement {
+func (s LoopStatement) Body() Statement {
 	return s.body
 }
 
-func (s *WhileStatement) Accept(v StatementVisitor) {
-	v.VisitWhileStatement(s)
+func (s LoopStatement) Increment() Expression {
+	return s.increment
+}
+
+func (s *LoopStatement) Accept(v StatementVisitor) {
+	v.VisitLoopStatement(s)
 }
 
 type FunctionStatement struct {

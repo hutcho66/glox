@@ -103,7 +103,7 @@ func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) {
 	}
 }
 
-func (i *Interpreter) VisitWhileStatement(s *ast.WhileStatement) {
+func (i *Interpreter) VisitLoopStatement(s *ast.LoopStatement) {
 	environment := i.environment
 
 	// catch break statement
@@ -123,11 +123,11 @@ func (i *Interpreter) VisitWhileStatement(s *ast.WhileStatement) {
 	for isTruthy(i.evaluate(s.Condition())) {
 		// this needs to be pushed to a function so that
 		// panic-defer works with continue statements
-		i.executeLoopBody(s.Body())
+		i.executeLoopBody(s.Body(), s.Increment())
 	}
 }
 
-func (i *Interpreter) executeLoopBody(body ast.Statement) {
+func (i *Interpreter) executeLoopBody(body ast.Statement, increment ast.Expression) {
 	environment := i.environment
 
 	// catch any continue statement - this will only end current loop iteration
@@ -141,10 +141,18 @@ func (i *Interpreter) executeLoopBody(body ast.Statement) {
 			// this is necessary because break is usually called inside a block
 			// and this panic will stop that block exiting properly
 			i.environment = environment
+
+			// ensure increment is run after continue
+			if increment != nil {
+				i.evaluate(increment)
+			}
 		}
 	}()
 
 	i.execute(body)
+	if increment != nil {
+		i.evaluate(increment)
+	}
 }
 
 func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
