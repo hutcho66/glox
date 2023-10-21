@@ -19,6 +19,8 @@ const (
 	SEMICOLON   = ";"
 	SLASH       = "/"
 	STAR        = "*"
+	QUESTION    = "?"
+	COLON       = ":"
 
 	// Multi character symbols
 	BANG          = "!"

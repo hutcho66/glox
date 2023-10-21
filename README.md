@@ -4,6 +4,7 @@ The lox language was developed by Robert Nystrom for the book [Crafting Interpre
 
 This is a implementation of the language in go, with a few additions:
  - Optional semicolons - a statement must be terminated either by a semicolon or a newline
+ - C-style ternary operator
  - break and continue statements
  - Lambda expressions using a JavaScript style arrow syntax
 
@@ -96,7 +97,7 @@ Note that assignment is an expression but declaration is not.
 
 ### Control Flow and Looping
 
-Lgloxx has `if`-`else` statements which work like any other language. Then and else statements can be singular statements or block statements.
+glox has `if`-`else` statements which work like any other language. Then and else statements can be singular statements or block statements.
 
 ```
 > if (6 > 5) print(true); else print(false)
@@ -109,6 +110,13 @@ true
 [line 1] Error at 'var': Expect expression. 
 
 > if (x <= 5) { var y = x; } // this is fine, `y` is scoped to the block
+```
+
+glox also has ternary expressions, which are right associative and at a lower precedence than all other expressions
+```
+> var x = 1
+> x == 1 ? "one" : a == 2 ? "two" : "many"
+one
 ```
 
 glox has C-style `while` and `for` loops. Variables defined in `for` loop initializers are scoped to the loop.

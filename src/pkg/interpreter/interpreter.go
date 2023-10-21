@@ -196,6 +196,16 @@ func (i *Interpreter) evaluate(e ast.Expression) any {
 	return e.Accept(i)
 }
 
+func (i *Interpreter) VisitTernaryExpression(e *ast.TernaryExpression) any {
+	condition := i.evaluate(e.Condition())
+
+	if isTruthy(condition) {
+		return i.evaluate(e.Consequence())
+	} else {
+		return i.evaluate(e.Alternative())
+	}
+}
+
 func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) any {
 	value := i.evaluate(e.Value())
 

@@ -235,7 +235,80 @@ func (p *Parser) expressionStatement() ast.Statement {
 }
 
 func (p *Parser) expression() ast.Expression {
-	return p.assignment()
+	if p.match(token.LEFT_PAREN) {
+		// need to check ahead to test if this is a lambda or a group expression
+		if p.check(token.RIGHT_PAREN) {
+			// must be lambda with no params
+			return p.lambda()
+		}
+
+		if p.check(token.IDENTIFIER) {
+			// presence of comma indicates a lambda
+			// as does a right paren and then the arrow operator
+			if p.checkAhead(token.COMMA, 1) || p.checkAhead(token.RIGHT_PAREN, 1) && p.checkAhead(token.LAMBDA_ARROW, 2) {
+				return p.lambda()
+			}
+		}
+
+		// must be group expression - no need to fall through to higher precedence
+		// as there is no other expressions starting with LEFT_PAREN
+		expr := p.expression()
+		p.consume(token.RIGHT_PAREN, "Expect ')' after expression.")
+
+		return ast.NewGroupingExpression(expr)
+	}
+
+	return p.ternary()
+}
+
+func (p *Parser) lambda() ast.Expression {
+	openingParen := p.previous()
+	parameters := []*token.Token{}
+	if !p.check(token.RIGHT_PAREN) {
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			if len(parameters) >= 255 {
+				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+			}
+
+			parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
+		}
+	}
+	p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
+
+	p.consume(token.LAMBDA_ARROW, "Expect '=>' after lambda parameters")
+
+	var body []ast.Statement
+	if p.match(token.LEFT_BRACE) {
+		// block lambda
+		body = p.block()
+	} else {
+		line := p.peek().GetLine()
+		expression := p.expression()
+		// add implicit return statement
+		token := token.NewToken(token.RETURN, "return", nil, line)
+		body = []ast.Statement{
+			ast.NewReturnStatement(token, expression),
+		}
+	}
+
+	function := ast.NewFunctionStatement(nil, parameters, body)
+
+	return ast.NewLambdaExpression(openingParen, function)
+}
+
+func (p *Parser) ternary() ast.Expression {
+	condition := p.assignment()
+
+	if p.match(token.QUESTION) {
+		operator := p.previous()
+		consequence := p.ternary()
+		p.consume(token.COLON, "Expect ':' after expression following '?'")
+		alternative := p.ternary()
+
+		return ast.NewTernaryExpression(operator, condition, consequence, alternative)
+	}
+
+	return condition
 }
 
 func (p *Parser) assignment() ast.Expression {
@@ -393,41 +466,6 @@ func (p *Parser) primary() ast.Expression {
 	}
 
 	panic(lox_error.ParserError(p.peek(), "Expect expression."))
-}
-
-func (p *Parser) lambda() ast.Expression {
-	openingParen := p.previous()
-	parameters := []*token.Token{}
-	if !p.check(token.RIGHT_PAREN) {
-		for ok := true; ok; ok = p.match(token.COMMA) {
-			if len(parameters) >= 255 {
-				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
-			}
-
-			parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
-		}
-	}
-	p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
-
-	p.consume(token.LAMBDA_ARROW, "Expect '=>' after lambda parameters")
-
-	var body []ast.Statement
-	if p.match(token.LEFT_BRACE) {
-		// block lambda
-		body = p.block()
-	} else {
-		line := p.peek().GetLine()
-		expression := p.expression()
-		// add implicit return statement
-		token := token.NewToken(token.RETURN, "return", nil, line)
-		body = []ast.Statement{
-			ast.NewReturnStatement(token, expression),
-		}
-	}
-
-	function := ast.NewFunctionStatement(nil, parameters, body)
-
-	return ast.NewLambdaExpression(openingParen, function)
 }
 
 func (p *Parser) finishCall(callee ast.Expression) ast.Expression {

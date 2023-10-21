@@ -15,6 +15,7 @@ type Expression interface {
 
 type ExpressionVisitor interface {
 	VisitBinaryExpression(*BinaryExpression) any
+	VisitTernaryExpression(*TernaryExpression) any
 	VisitLogicalExpression(*LogicalExpression) any
 	VisitGroupedExpression(*GroupingExpression) any
 	VisitUnaryExpression(*UnaryExpression) any
@@ -61,6 +62,49 @@ func (b BinaryExpression) Right() Expression {
 
 func (b BinaryExpression) Operator() *token.Token {
 	return b.operator
+}
+
+type TernaryExpression struct {
+	condition, consequence, alternative Expression
+	operator                            *token.Token
+}
+
+func NewTernaryExpression(operator *token.Token, condition, consequence, alternative Expression) Expression {
+	return &TernaryExpression{
+		condition:   condition,
+		consequence: consequence,
+		alternative: alternative,
+		operator:    operator,
+	}
+}
+
+// TernaryExpression implements Expression
+func (TernaryExpression) expression() bool {
+	return true
+}
+
+func (e TernaryExpression) String() string {
+	return fmt.Sprintf("%s ? %s : %s", e.condition, e.consequence, e.alternative)
+}
+
+func (e *TernaryExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitTernaryExpression(e)
+}
+
+func (e TernaryExpression) Operator() *token.Token {
+	return e.operator
+}
+
+func (e TernaryExpression) Condition() Expression {
+	return e.condition
+}
+
+func (e TernaryExpression) Consequence() Expression {
+	return e.consequence
+}
+
+func (e TernaryExpression) Alternative() Expression {
+	return e.alternative
 }
 
 type LogicalExpression struct {

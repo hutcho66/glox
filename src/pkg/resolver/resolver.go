@@ -190,6 +190,13 @@ func (r *Resolver) VisitAssignmentExpression(e *ast.AssignmentExpression) any {
 	return nil
 }
 
+func (r *Resolver) VisitTernaryExpression(e *ast.TernaryExpression) any {
+	r.resolveExpression(e.Condition())
+	r.resolveExpression(e.Consequence())
+	r.resolveExpression(e.Alternative())
+	return nil
+}
+
 func (r *Resolver) VisitBinaryExpression(e *ast.BinaryExpression) any {
 	r.resolveExpression(e.Left())
 	r.resolveExpression(e.Right())
