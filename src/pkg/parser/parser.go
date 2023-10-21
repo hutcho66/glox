@@ -498,7 +498,13 @@ func (p *Parser) consume(tokenType token.TokenType, message string) *token.Token
 }
 
 func (p *Parser) endStatement() {
-	// Must have at least one semicolon or newline to terminate a statement
+	// a closing brace is a valid statement ending, to allow statements like this on one line
+	// `if (true) { var x = 5; print(x) }`
+	if p.check(token.RIGHT_BRACE) {
+		return
+	}
+
+	// Otherwise, must have at least one semicolon or newline to terminate a statement
 	if terminated := p.match(token.SEMICOLON, token.NEW_LINE); !terminated && !p.isAtEnd() {
 		panic(lox_error.ParserError(p.peek(), "Improperly terminated statement"))
 	}

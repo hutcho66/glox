@@ -109,7 +109,7 @@ true
 > if (x <= 5) var y = x // declaration is not allowed in conditional statements
 [line 1] Error at 'var': Expect expression. 
 
-> if (x <= 5) { var y = x; } // this is fine, `y` is scoped to the block
+> if (x <= 5) { var y = x } // this is fine, `y` is scoped to the block
 ```
 
 glox also has ternary expressions, which are right associative and at a lower precedence than all other expressions other than lambdas
@@ -122,7 +122,7 @@ one
 glox has C-style `while` and `for` loops. Variables defined in `for` loop initializers are scoped to the loop.
 ```
 > var x = 0
-> while (x < 2) { print(x); x = x+1; }
+> while (x < 2) { print(x); x = x+1 }
 0
 1
 > x
@@ -138,11 +138,11 @@ glox has C-style `while` and `for` loops. Variables defined in `for` loop initia
 glox supports break and continue statements
 ```
 > var i = 0
-> while (i < 10) { if (i == 5) { break; } i = i + 1; }
+> while (i < 10) { if (i == 5) break; i = i + 1 }
 > i
 5
 
-> for (var i = 0; i < 5; i = i + 1) { if (i == 2) continue; else print(i); }
+> for (var i = 0; i < 5; i = i + 1) { if (i == 2) continue; else print(i) }
 1
 3
 4
