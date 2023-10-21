@@ -112,7 +112,7 @@ true
 > if (x <= 5) { var y = x; } // this is fine, `y` is scoped to the block
 ```
 
-glox also has ternary expressions, which are right associative and at a lower precedence than all other expressions
+glox also has ternary expressions, which are right associative and at a lower precedence than all other expressions other than lambdas
 ```
 > var x = 1
 > x == 1 ? "one" : a == 2 ? "two" : "many"
@@ -154,8 +154,11 @@ glox supports break and continue statements
 glox supports both named functions as per the lox reference implementation, as well as lambda expressions, using a JavaScript style arrow syntax. 
 Functions are first class objects and can be stored in variables as well as passed as arguments.
 
-The body of a lambda function can either be a standard block statement, or it can be a single expression statement (**not** a return statement),
+The body of a lambda expression can either be a standard block statement, or it can be a single expression,
 which will be implicitly returned.
+
+Like JavaScript, single parameter lambdas do not need parentheses, `x => x` is a valid lambda expression. Lambdas with zero or
+more than one parameter must have parentheses.
 
 ```
 > fun hello(first, getLastName) { return "Hello, " + first + " " + getLastName(); }
@@ -176,13 +179,13 @@ Hello, Mark Jones
 > hello("Mark", () => "Taylor")
 Hello, Mark Taylor
 
-> hello("Mark", () => return "Green") // this is invalid, lambda bodys can only be a block statement or an expression statement, return statements are invalid
+> hello("Mark", () => return "Green") // this is invalid, lambda bodys can only be a block statement or an expression, return statements are invalid
 [line 1] Error at 'return': Expect expression.
 ```
 
 Closures are fully supported in both named and lambda functions
 ```
-> var adder = (a) => (b) => a + b
+> var adder = a => b => a + b
 > var add5 = adder(5)
 > add5(6)
 11

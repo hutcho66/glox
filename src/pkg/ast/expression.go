@@ -347,14 +347,14 @@ func (e CallExpression) Arguments() []Expression {
 }
 
 type LambdaExpression struct {
-	openingParen *token.Token
-	function     *FunctionStatement
+	operator *token.Token
+	function *FunctionStatement
 }
 
-func NewLambdaExpression(openingParen *token.Token, function *FunctionStatement) Expression {
+func NewLambdaExpression(operator *token.Token, function *FunctionStatement) Expression {
 	return &LambdaExpression{
-		openingParen: openingParen,
-		function:     function,
+		operator: operator,
+		function: function,
 	}
 }
 
@@ -379,8 +379,8 @@ func (e *LambdaExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitLambdaExpression(e)
 }
 
-func (e LambdaExpression) OpeningParen() *token.Token {
-	return e.openingParen
+func (e LambdaExpression) Operator() *token.Token {
+	return e.operator
 }
 
 func (e LambdaExpression) Function() *FunctionStatement {

@@ -235,47 +235,52 @@ func (p *Parser) expressionStatement() ast.Statement {
 }
 
 func (p *Parser) expression() ast.Expression {
-	if p.match(token.LEFT_PAREN) {
+	if p.check(token.LEFT_PAREN) {
 		// need to check ahead to test if this is a lambda or a group expression
-		if p.check(token.RIGHT_PAREN) {
+		if p.checkAhead(token.RIGHT_PAREN, 1) {
 			// must be lambda with no params
 			return p.lambda()
 		}
 
-		if p.check(token.IDENTIFIER) {
+		if p.checkAhead(token.IDENTIFIER, 1) {
 			// presence of comma indicates a lambda
 			// as does a right paren and then the arrow operator
-			if p.checkAhead(token.COMMA, 1) || p.checkAhead(token.RIGHT_PAREN, 1) && p.checkAhead(token.LAMBDA_ARROW, 2) {
+			if p.checkAhead(token.COMMA, 2) || p.checkAhead(token.RIGHT_PAREN, 2) && p.checkAhead(token.LAMBDA_ARROW, 3) {
 				return p.lambda()
 			}
 		}
+	}
 
-		// must be group expression - no need to fall through to higher precedence
-		// as there is no other expressions starting with LEFT_PAREN
-		expr := p.expression()
-		p.consume(token.RIGHT_PAREN, "Expect ')' after expression.")
-
-		return ast.NewGroupingExpression(expr)
+	if p.check(token.IDENTIFIER) && p.checkAhead(token.LAMBDA_ARROW, 1) {
+		// x => <expression>
+		return p.lambda()
 	}
 
 	return p.ternary()
 }
 
 func (p *Parser) lambda() ast.Expression {
-	openingParen := p.previous()
 	parameters := []*token.Token{}
-	if !p.check(token.RIGHT_PAREN) {
-		for ok := true; ok; ok = p.match(token.COMMA) {
-			if len(parameters) >= 255 {
-				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+	if p.match(token.IDENTIFIER) {
+		// x => <expression> form
+		parameters = append(parameters, p.previous())
+	} else {
+		p.consume(token.LEFT_PAREN, "unexpected error") // already checked
+
+		if !p.check(token.RIGHT_PAREN) {
+			for ok := true; ok; ok = p.match(token.COMMA) {
+				if len(parameters) >= 255 {
+					panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+				}
+
+				parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
 			}
-
-			parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
 		}
-	}
-	p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
 
-	p.consume(token.LAMBDA_ARROW, "Expect '=>' after lambda parameters")
+		p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
+	}
+
+	operator := p.consume(token.LAMBDA_ARROW, "Expect '=>' after lambda parameters")
 
 	var body []ast.Statement
 	if p.match(token.LEFT_BRACE) {
@@ -293,7 +298,7 @@ func (p *Parser) lambda() ast.Expression {
 
 	function := ast.NewFunctionStatement(nil, parameters, body)
 
-	return ast.NewLambdaExpression(openingParen, function)
+	return ast.NewLambdaExpression(operator, function)
 }
 
 func (p *Parser) ternary() ast.Expression {
@@ -301,9 +306,9 @@ func (p *Parser) ternary() ast.Expression {
 
 	if p.match(token.QUESTION) {
 		operator := p.previous()
-		consequence := p.ternary()
+		consequence := p.expression()
 		p.consume(token.COLON, "Expect ':' after expression following '?'")
-		alternative := p.ternary()
+		alternative := p.expression()
 
 		return ast.NewTernaryExpression(operator, condition, consequence, alternative)
 	}
