@@ -36,6 +36,19 @@ func (e *Environment) get(name *token.Token) (any, error) {
 	return nil, lox_error.RuntimeError(name, "Undefined variable '"+name.GetLexeme()+"'")
 }
 
+func (e *Environment) getAt(distance int, name string) any {
+	return e.ancestor(distance).values[name]
+}
+
+func (e *Environment) ancestor(distance int) *Environment {
+	environment := e
+	for i := 0; i < distance; i++ {
+		environment = environment.enclosing
+	}
+
+	return environment
+}
+
 func (e *Environment) define(name string, value any) {
 	e.values[name] = value
 }
@@ -52,4 +65,8 @@ func (e *Environment) assign(name *token.Token, value any) error {
 	}
 
 	return lox_error.RuntimeError(name, "Undefined variable '"+name.GetLexeme()+"'")
+}
+
+func (e *Environment) assignAt(distance int, name *token.Token, value any) {
+	e.ancestor(distance).values[name.GetLexeme()] = value
 }

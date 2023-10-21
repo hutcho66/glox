@@ -9,6 +9,7 @@ import (
 
 var hadParsingError = false
 var hadRuntimeError = false
+var hadResolutionError = false
 
 func ScannerError(line int, message string) {
 	hadParsingError = true
@@ -17,6 +18,17 @@ func ScannerError(line int, message string) {
 
 func ParserError(t *token.Token, message string) error {
 	hadParsingError = true
+	if t.GetType() == token.EOF {
+		Report(t.GetLine(), " at end", message)
+	} else {
+		Report(t.GetLine(), " at '"+t.GetLexeme()+"'", message)
+	}
+
+	return errors.New("")
+}
+
+func ResolutionError(t *token.Token, message string) error {
+	hadResolutionError = true
 	if t.GetType() == token.EOF {
 		Report(t.GetLine(), " at end", message)
 	} else {
@@ -44,7 +56,12 @@ func HadRuntimeError() bool {
 	return hadRuntimeError
 }
 
+func HadResolutionError() bool {
+	return hadResolutionError
+}
+
 func ResetError() {
 	hadParsingError = false
 	hadRuntimeError = false
+	hadResolutionError = false
 }

@@ -12,6 +12,7 @@ import (
 type Interpreter struct {
 	globals     *Environment
 	environment *Environment
+	locals      map[ast.Expression]int
 }
 
 func NewInterpreter() *Interpreter {
@@ -24,6 +25,7 @@ func NewInterpreter() *Interpreter {
 	return &Interpreter{
 		globals:     globals,
 		environment: globals,
+		locals:      make(map[ast.Expression]int),
 	}
 }
 
@@ -52,6 +54,10 @@ func (i *Interpreter) Interpret(statements []ast.Statement) (value any, ok bool)
 
 	// last statement is not expression statement, so has no return value
 	return nil, false
+}
+
+func (i *Interpreter) Resolve(expression ast.Expression, depth int) {
+	i.locals[expression] = depth
 }
 
 func (i *Interpreter) execute(s ast.Statement) (ok bool) {
@@ -134,17 +140,19 @@ func (i *Interpreter) evaluate(e ast.Expression) any {
 
 func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) any {
 	value := i.evaluate(e.Value())
-	i.environment.assign(e.Name(), value)
+
+	distance, ok := i.locals[e]
+	if ok {
+		i.environment.assignAt(distance, e.Name(), value)
+	} else {
+		i.globals.assign(e.Name(), value)
+	}
 
 	return value
 }
 
 func (i *Interpreter) VisitVariableExpression(e *ast.VariableExpression) any {
-	if value, err := i.environment.get(e.Name()); err == nil {
-		return value
-	} else {
-		panic(err)
-	}
+	return i.lookupVariable(e.Name(), e)
 }
 
 func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) any {
@@ -268,6 +276,20 @@ func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
 		return function.Call(i, argValues)
 	}
 	panic(lox_error.RuntimeError(e.ClosingParen(), "Can only call functions and classes"))
+}
+
+func (i *Interpreter) lookupVariable(name *token.Token, expression ast.Expression) any {
+	if distance, ok := i.locals[expression]; ok {
+		// safe to not check for error as the resolver should have done its job...
+		return i.environment.getAt(distance, name.GetLexeme())
+	} else {
+		val, err := i.globals.get(name)
+		if err == nil {
+			return val
+		} else {
+			panic(err)
+		}
+	}
 }
 
 func isTruthy(value any) bool {
