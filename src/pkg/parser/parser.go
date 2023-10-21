@@ -90,6 +90,14 @@ func (p *Parser) statement() ast.Statement {
 		return p.returnStatement()
 	}
 
+	if p.match(token.BREAK) {
+		return p.breakStatement()
+	}
+
+	if p.match(token.CONTINUE) {
+		return p.continueStatement()
+	}
+
 	if p.match(token.IF) {
 		return p.ifStatement()
 	}
@@ -132,6 +140,18 @@ func (p *Parser) returnStatement() ast.Statement {
 
 	p.endStatement()
 	return ast.NewReturnStatement(keyword, value)
+}
+
+func (p *Parser) breakStatement() ast.Statement {
+	keyword := p.previous()
+	p.endStatement()
+	return ast.NewBreakStatement(keyword)
+}
+
+func (p *Parser) continueStatement() ast.Statement {
+	keyword := p.previous()
+	p.endStatement()
+	return ast.NewContinueStatement(keyword)
 }
 
 func (p *Parser) ifStatement() ast.Statement {

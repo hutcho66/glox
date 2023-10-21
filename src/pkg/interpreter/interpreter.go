@@ -104,9 +104,47 @@ func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) {
 }
 
 func (i *Interpreter) VisitWhileStatement(s *ast.WhileStatement) {
+	environment := i.environment
+
+	// catch break statement
+	defer func() {
+		if val := recover(); val != nil {
+			if val != LoxBreak {
+				// repanic - not a break statement
+				panic(val)
+			}
+
+			// this is necessary because break is usually called inside a block
+			// and this panic will stop that block exiting properly
+			i.environment = environment
+		}
+	}()
+
 	for isTruthy(i.evaluate(s.Condition())) {
-		i.execute(s.Body())
+		// this needs to be pushed to a function so that
+		// panic-defer works with continue statements
+		i.executeLoopBody(s.Body())
 	}
+}
+
+func (i *Interpreter) executeLoopBody(body ast.Statement) {
+	environment := i.environment
+
+	// catch any continue statement - this will only end current loop iteration
+	defer func() {
+		if val := recover(); val != nil {
+			if val != LoxContinue {
+				// repanic - not a continue statement
+				panic(val)
+			}
+
+			// this is necessary because break is usually called inside a block
+			// and this panic will stop that block exiting properly
+			i.environment = environment
+		}
+	}()
+
+	i.execute(body)
 }
 
 func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
@@ -131,7 +169,17 @@ func (i *Interpreter) VisitReturnStatement(s *ast.ReturnStatement) {
 	}
 
 	// Using panic to wind back call stack
-	panic(NewLoxReturn(value))
+	panic(LoxReturn(value))
+}
+
+func (i *Interpreter) VisitBreakStatement(s *ast.BreakStatement) {
+	// Using panic to wind back call stack
+	panic(LoxBreak)
+}
+
+func (i *Interpreter) VisitContinueStatement(s *ast.ContinueStatement) {
+	// Using panic to wind back call stack
+	panic(LoxContinue)
 }
 
 func (i *Interpreter) evaluate(e ast.Expression) any {

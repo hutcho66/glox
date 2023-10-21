@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "/Users/james.hutcheon/Dev/go/glox/src/cmd/glox.go",
             "args": ["../../script.lox"]
         }
     ]

@@ -21,6 +21,8 @@ type StatementVisitor interface {
 	VisitWhileStatement(*WhileStatement)
 	VisitFunctionStatement(*FunctionStatement)
 	VisitReturnStatement(*ReturnStatement)
+	VisitBreakStatement(*BreakStatement)
+	VisitContinueStatement(*ContinueStatement)
 }
 
 type ExpressionStatement struct {
@@ -131,6 +133,9 @@ func (IfStatement) statement() bool {
 }
 
 func (s IfStatement) String() string {
+	if s.alternative == nil {
+		return fmt.Sprintf("if (%s) %s", s.condition.String(), s.consequence.String())
+	}
 	return fmt.Sprintf("if (%s) %s else %s", s.condition.String(), s.consequence.String(), s.alternative.String())
 }
 
@@ -258,4 +263,56 @@ func (s ReturnStatement) Value() Expression {
 
 func (s *ReturnStatement) Accept(v StatementVisitor) {
 	v.VisitReturnStatement(s)
+}
+
+type BreakStatement struct {
+	keyword *token.Token
+}
+
+func NewBreakStatement(keyword *token.Token) *BreakStatement {
+	return &BreakStatement{
+		keyword: keyword,
+	}
+}
+
+func (BreakStatement) statement() bool {
+	return true
+}
+
+func (s BreakStatement) String() string {
+	return "break"
+}
+
+func (s BreakStatement) Keyword() *token.Token {
+	return s.keyword
+}
+
+func (s *BreakStatement) Accept(v StatementVisitor) {
+	v.VisitBreakStatement(s)
+}
+
+type ContinueStatement struct {
+	keyword *token.Token
+}
+
+func NewContinueStatement(keyword *token.Token) *ContinueStatement {
+	return &ContinueStatement{
+		keyword: keyword,
+	}
+}
+
+func (ContinueStatement) statement() bool {
+	return true
+}
+
+func (s ContinueStatement) String() string {
+	return "continue"
+}
+
+func (s ContinueStatement) Keyword() *token.Token {
+	return s.keyword
+}
+
+func (s *ContinueStatement) Accept(v StatementVisitor) {
+	v.VisitContinueStatement(s)
 }

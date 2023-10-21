@@ -18,6 +18,7 @@ type Resolver struct {
 	interpreter     *interpreter.Interpreter
 	scopes          []map[string]bool
 	currentFunction FunctionType
+	loop            bool
 }
 
 func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
@@ -25,6 +26,7 @@ func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
 		interpreter:     interpreter,
 		scopes:          []map[string]bool{},
 		currentFunction: NONE,
+		loop:            false,
 	}
 }
 
@@ -150,6 +152,18 @@ func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
 	}
 }
 
+func (r *Resolver) VisitBreakStatement(s *ast.BreakStatement) {
+	if r.loop == false {
+		lox_error.ResolutionError(s.Keyword(), "Can't break when not in loop")
+	}
+}
+
+func (r *Resolver) VisitContinueStatement(s *ast.ContinueStatement) {
+	if r.loop == false {
+		lox_error.ResolutionError(s.Keyword(), "Can't continue when not in loop")
+	}
+}
+
 func (r *Resolver) VisitVarStatement(s *ast.VarStatement) {
 	r.declare(s.Name())
 	if s.Initializer() != nil {
@@ -160,7 +174,10 @@ func (r *Resolver) VisitVarStatement(s *ast.VarStatement) {
 
 func (r *Resolver) VisitWhileStatement(s *ast.WhileStatement) {
 	r.resolveExpression(s.Condition())
+
+	r.loop = true
 	r.resolveStatement(s.Body())
+	r.loop = false
 }
 
 // Resolver implements ast.ExpressionVisitor.

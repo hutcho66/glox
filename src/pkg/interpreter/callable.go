@@ -4,14 +4,6 @@ import (
 	"github.com/hutcho66/glox/src/pkg/ast"
 )
 
-type LoxReturn struct {
-	value any
-}
-
-func NewLoxReturn(value any) *LoxReturn {
-	return &LoxReturn{value: value}
-}
-
 type LoxCallable interface {
 	Arity() int
 	Call(interpreter *Interpreter, arguments []any) any
@@ -36,8 +28,8 @@ func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnVal
 
 	defer func() {
 		if val := recover(); val != nil {
-			rv, ok := val.(*LoxReturn)
-			if !ok {
+			rv, ok := val.(*LoxControl)
+			if !ok || rv.controlType != RETURN {
 				// repanic
 				panic(val)
 			}
