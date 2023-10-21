@@ -2,7 +2,8 @@ package interpreter
 
 import (
 	"fmt"
-	"math"
+	"reflect"
+	"strconv"
 
 	"github.com/hutcho66/glox/src/pkg/ast"
 	"github.com/hutcho66/glox/src/pkg/lox_error"
@@ -21,6 +22,7 @@ func NewInterpreter() *Interpreter {
 	// add native functions
 	globals.define("clock", NewClockNative())
 	globals.define("print", NewPrintNative())
+	globals.define("string", NewStringNative())
 
 	return &Interpreter{
 		globals:     globals,
@@ -260,53 +262,55 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 	right := i.evaluate(be.Right())
 	operator := be.Operator()
 
-	// can compare any type with == or != and don't need to type check
 	switch operator.GetType() {
+	// can compare any type with == or != and don't need to type check
 	case token.EQUAL_EQUAL:
 		return left == right
 	case token.BANG_EQUAL:
 		return left != right
-	}
-
-	// for non-comparisons, types must match
-	switch l := left.(type) {
-	case float64:
+	// concatenate can be used on any basic types as long as one or more is a string
+	case token.PLUS:
 		{
-			if r, ok := right.(float64); ok {
-				switch operator.GetType() {
-				case token.MINUS:
-					return l - r
-				case token.PLUS:
-					return l + r
-				case token.SLASH:
-					return l / r
-				case token.STAR:
-					return l * r
-				case token.GREATER:
-					return l > r
-				case token.GREATER_EQUAL:
-					return l >= r
-				case token.LESS:
-					return l < r
-				case token.LESS_EQUAL:
-					return l <= r
-				}
+			leftValue := reflect.ValueOf(left)
+			rightValue := reflect.ValueOf(right)
+			if leftValue.Kind() == reflect.Float64 && rightValue.Kind() == reflect.Float64 {
+				return leftValue.Float() + rightValue.Float()
+			} else if leftValue.Kind() == reflect.String && rightValue.Kind() == reflect.String {
+				return leftValue.String() + rightValue.String()
+			} else if leftValue.Kind() == reflect.String {
+				return concatenate(operator, leftValue.String(), right, false)
+			} else if rightValue.Kind() == reflect.String {
+				return concatenate(operator, rightValue.String(), left, true)
+			} else {
+				panic(lox_error.RuntimeError(operator, "only valid for two numbers, two strings, or one string and a number or boolean"))
 			}
-			panic(lox_error.RuntimeError(operator, "Operands are of different type"))
 		}
-	case string:
+	// all other binary operations are only valid on numbers
+	default:
 		{
-			if r, ok := right.(string); ok {
-				switch operator.GetType() {
-				case token.PLUS:
-					return l + r
-				case token.EQUAL_EQUAL:
-					return l == r
-				case token.BANG_EQUAL:
-					return l != r
-				}
+			l, lok := left.(float64)
+			r, rok := right.(float64)
+			if !lok || !rok {
+				panic(lox_error.RuntimeError(operator, "only valid for numbers"))
 			}
-			panic(lox_error.RuntimeError(operator, "Operands are of different type"))
+			switch operator.GetType() {
+			case token.MINUS:
+				return l - r
+			case token.PLUS:
+				return l + r
+			case token.SLASH:
+				return l / r
+			case token.STAR:
+				return l * r
+			case token.GREATER:
+				return l > r
+			case token.GREATER_EQUAL:
+				return l >= r
+			case token.LESS:
+				return l < r
+			case token.LESS_EQUAL:
+				return l <= r
+			}
 		}
 	}
 
@@ -348,6 +352,21 @@ func (i *Interpreter) lookupVariable(name *token.Token, expression ast.Expressio
 	}
 }
 
+func concatenate(operator *token.Token, stringValue string, otherValue any, reverse bool) string {
+	var other string
+	switch otherValue.(type) {
+	case float64, bool:
+		other = Stringify(otherValue)
+	default:
+		panic(lox_error.RuntimeError(operator, fmt.Sprintf("cannot concatenate string with type %s", Stringify(otherValue))))
+	}
+
+	if reverse {
+		return other + stringValue
+	}
+	return stringValue + other
+}
+
 func isTruthy(value any) bool {
 	if value == nil {
 		return false
@@ -367,15 +386,10 @@ func Stringify(v any) string {
 	case bool:
 		return fmt.Sprintf("%t", v)
 	case float64:
-		{
-			if math.Mod(v, 1.0) == 0 {
-				return fmt.Sprintf("%.0f", v)
-			}
-			return fmt.Sprintf("%f", v)
-		}
+		return strconv.FormatFloat(v, 'f', -1, 64)
 	case LoxCallable:
 		return v.String()
 	}
 
-	return "unprintable object"
+	return "<object>"
 }

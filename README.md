@@ -5,7 +5,7 @@ The lox language was developed by Robert Nystrom for the book [Crafting Interpre
 This is a implementation of the language in go, with a few additions:
  - Optional semicolons - a statement must be terminated either by a semicolon or a newline
  - break and continue statements
- - JavaScript style lambdas / anonymous functions
+ - Lambda expressions using a JavaScript style arrow syntax
 
 ## Language Specification
 
@@ -13,20 +13,38 @@ glox is a basic language with some object oriented features.
 
 ### Basic Operations
 
-Numbers are implemented as double precision floats but print as integers if it is suitable
+Numbers are implemented as double precision floats, but should print nicely (using go's handy `strconv.FormatFloat` function)
 
 ```
 > 5 + 4
 9
 > 3 / 2
-1.500000
+1.5
+> 5 / 3
+1.6666666666666667
 ```
 
-Strings can be concatenated using the `+` operator
+Strings can be concatenated using the `+` operator. Additionally, a string can be concatenated
+with a number or a boolean value
+
+While you cannot concatenate strings with values that are not numbers or booleans, you can get
+the string represntation of any value using the builtin `string` function (or print it to the console with the `print` function)
 
 ```
 > "hello " + "world"
 hello world
+
+> "there are " + 9 + " planets in the solar system"
+there are 9 planets
+
+> "the last statement is " + false
+the last statement is false
+
+> fun a() {}
+> "The representation of a is " + a
+[line 1] Error at '+': cannot concatenate string with type <fn a>
+> "The representation of a is " + string(a)
+The representation of a is <fn a>
 ```
 
 All values are truthy except the nil value and boolean false
@@ -125,9 +143,8 @@ glox supports break and continue statements
 
 ### Functions
 
-glox supports both named functions as per the lox reference implementation, as well as JavaScript style anonymous 
-functions (lambdas) using JS style arrow syntax. Functions are first class objects and can be stored in variables
-as well as passed as arguments.
+glox supports both named functions as per the lox reference implementation, as well as lambda expressions, using a JavaScript style arrow syntax. 
+Functions are first class objects and can be stored in variables as well as passed as arguments.
 
 The body of a lambda function can either be a standard block statement, or it can be a single expression statement (**not** a return statement),
 which will be implicitly returned.

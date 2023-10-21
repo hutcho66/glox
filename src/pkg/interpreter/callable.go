@@ -55,5 +55,9 @@ func (f LoxFunction) Arity() int {
 }
 
 func (f LoxFunction) String() string {
-	return "<fn " + f.declaration.Name().GetLexeme() + ">"
+	if f.declaration.Name() != nil {
+		return "<fn " + f.declaration.Name().GetLexeme() + ">"
+	} else {
+		return "<lambda>"
+	}
 }

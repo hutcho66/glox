@@ -41,3 +41,21 @@ func (PrintNative) String() string {
 func NewPrintNative() LoxCallable {
 	return PrintNative{}
 }
+
+type StringNative struct{}
+
+func (StringNative) Arity() int {
+	return 1
+}
+
+func (StringNative) Call(interpreter *Interpreter, arguments []any) any {
+	return Stringify(arguments[0])
+}
+
+func (StringNative) String() string {
+	return "<native fn>"
+}
+
+func NewStringNative() LoxCallable {
+	return StringNative{}
+}
