@@ -6,7 +6,7 @@ import (
 
 type LoxCallable interface {
 	Arity() int
-	Call(interpreter *Interpreter, arguments []any) any
+	Call(interpreter *Interpreter, arguments []any) (any, error)
 	String() string
 }
 
@@ -22,7 +22,7 @@ func NewLoxFunction(declaration *ast.FunctionStatement, closure *Environment) *L
 	}
 }
 
-func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnValue any) {
+func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnValue any, err error) {
 	enclosingEnvironment := interpreter.environment
 	environment := NewEnclosingEnvironment(f.closure)
 
@@ -47,7 +47,7 @@ func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnVal
 	interpreter.executeBlock(f.declaration.Body(), environment)
 
 	// if we've reached here, there was no return statement, so implicitly return nil
-	return nil
+	return nil, nil
 }
 
 func (f LoxFunction) Arity() int {

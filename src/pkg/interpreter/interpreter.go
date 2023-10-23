@@ -2,8 +2,8 @@ package interpreter
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/hutcho66/glox/src/pkg/ast"
 	"github.com/hutcho66/glox/src/pkg/lox_error"
@@ -23,6 +23,7 @@ func NewInterpreter() *Interpreter {
 	globals.define("clock", NewClockNative())
 	globals.define("print", NewPrintNative())
 	globals.define("string", NewStringNative())
+	globals.define("len", NewLengthNative())
 
 	return &Interpreter{
 		globals:     globals,
@@ -231,6 +232,102 @@ func (i *Interpreter) VisitGroupedExpression(ge *ast.GroupingExpression) any {
 	return i.evaluate(ge.Expression())
 }
 
+func (i *Interpreter) VisitSequenceExpression(e *ast.SequenceExpression) any {
+	// evaluate all items but only return final one
+	var result any
+	for _, item := range e.Items() {
+		result = i.evaluate(item)
+	}
+
+	return result
+}
+
+func (i *Interpreter) VisitArrayExpression(e *ast.ArrayExpression) any {
+	// represent arrays by slices of any
+	array := make([]any, len(e.Items()))
+	for idx, item := range e.Items() {
+		array[idx] = i.evaluate(item)
+	}
+
+	return array
+}
+
+func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
+	object := i.evaluate(e.Object())
+	leftIndex, leftIsNumber := i.evaluate(e.LeftIndex()).(float64)
+	var (
+		rightIndex    float64
+		rightIsNumber bool = false
+	)
+	if e.RightIndex() != nil {
+		rightIndex, rightIsNumber = i.evaluate(e.RightIndex()).(float64)
+	}
+
+	if !leftIsNumber || !isInteger(leftIndex) {
+		panic(lox_error.RuntimeError(e.ClosingBracket(), "Index must be integer"))
+	}
+
+	if rightIsNumber && (!rightIsNumber || !isInteger(rightIndex)) {
+		panic(lox_error.RuntimeError(e.ClosingBracket(), "Index must be integer"))
+	}
+
+	switch val := object.(type) {
+	case []any:
+		{
+			if leftIndex < 0 || int(leftIndex) >= len(val) ||
+				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
+				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range for array"))
+			}
+			if rightIsNumber && (leftIndex > rightIndex) {
+				panic(lox_error.RuntimeError(e.ClosingBracket(), "Right index of slice must be greater or equal to left index"))
+			}
+			if rightIsNumber {
+				return val[int(leftIndex):int(rightIndex)]
+			} else {
+				return val[int(leftIndex)]
+			}
+		}
+	case string:
+		{
+			if leftIndex < 0 || int(leftIndex) >= len(val) ||
+				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
+				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range for array"))
+			}
+			if rightIsNumber && (leftIndex > rightIndex) {
+				panic(lox_error.RuntimeError(e.ClosingBracket(), "Right index of slice must be greater or equal to left index"))
+			}
+			if rightIsNumber {
+				return val[int(leftIndex):int(rightIndex)]
+			} else {
+				return string(val[int(leftIndex)]) // go will return a byte
+			}
+		}
+	}
+
+	panic(lox_error.RuntimeError(e.ClosingBracket(), "Can only index arrays"))
+}
+
+func (i *Interpreter) VisitArrayAssignmentExpression(e *ast.ArrayAssignmentExpression) any {
+	array, isArray := i.evaluate(e.Left().Object()).([]any)
+	index, isNumber := i.evaluate(e.Left().LeftIndex()).(float64)
+
+	// don't need to check for right index as using a slice for assignment is a parser error
+
+	if !isArray {
+		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Can only assign to array elements"))
+	}
+	if !isNumber || !isInteger(index) {
+		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Index must be integer"))
+	}
+	if index < 0 || int(index) >= len(array) {
+		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Index is out of range for array"))
+	}
+
+	value := i.evaluate(e.Value())
+	array[int(index)] = value
+	return value
+}
+
 func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) any {
 	left := i.evaluate(le.Left())
 
@@ -281,18 +378,28 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 	// concatenate can be used on any basic types as long as one or more is a string
 	case token.PLUS:
 		{
-			leftValue := reflect.ValueOf(left)
-			rightValue := reflect.ValueOf(right)
-			if leftValue.Kind() == reflect.Float64 && rightValue.Kind() == reflect.Float64 {
-				return leftValue.Float() + rightValue.Float()
-			} else if leftValue.Kind() == reflect.String && rightValue.Kind() == reflect.String {
-				return leftValue.String() + rightValue.String()
-			} else if leftValue.Kind() == reflect.String {
-				return concatenate(operator, leftValue.String(), right, false)
-			} else if rightValue.Kind() == reflect.String {
-				return concatenate(operator, rightValue.String(), left, true)
+			leftNum, leftIsNumber := left.(float64)
+			rightNum, rightIsNumber := right.(float64)
+			if leftIsNumber && rightIsNumber {
+				return leftNum + rightNum
+			}
+
+			leftArr, leftIsArray := left.([]any)
+			rightArr, rightIsArray := right.([]any)
+			if leftIsArray && rightIsArray {
+				return append(leftArr, rightArr...)
+			}
+
+			leftStr, leftIsString := left.(string)
+			rightStr, rightIsString := right.(string)
+			if leftIsString && rightIsString {
+				return leftStr + rightStr
+			} else if leftIsString {
+				return concatenate(operator, leftStr, right, false)
+			} else if rightIsString {
+				return concatenate(operator, rightStr, left, true)
 			} else {
-				panic(lox_error.RuntimeError(operator, "only valid for two numbers, two strings, or one string and a number or boolean"))
+				panic(lox_error.RuntimeError(operator, "only valid for two numbers, two strings, two arrays, or one string and a number or boolean"))
 			}
 		}
 	// all other binary operations are only valid on numbers
@@ -343,7 +450,12 @@ func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
 		if len(argValues) != function.Arity() {
 			panic(lox_error.RuntimeError(e.ClosingParen(), fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(argValues))))
 		}
-		return function.Call(i, argValues)
+		value, err := function.Call(i, argValues)
+		if err != nil {
+			panic(lox_error.RuntimeError(e.ClosingParen(), err.Error()))
+		}
+
+		return value
 	}
 	panic(lox_error.RuntimeError(e.ClosingParen(), "Can only call functions and classes"))
 }
@@ -366,15 +478,19 @@ func concatenate(operator *token.Token, stringValue string, otherValue any, reve
 	var other string
 	switch otherValue.(type) {
 	case float64, bool:
-		other = Stringify(otherValue)
+		other = Representation(otherValue)
 	default:
-		panic(lox_error.RuntimeError(operator, fmt.Sprintf("cannot concatenate string with type %s", Stringify(otherValue))))
+		panic(lox_error.RuntimeError(operator, fmt.Sprintf("cannot concatenate string with type %s", Representation(otherValue))))
 	}
 
 	if reverse {
 		return other + stringValue
 	}
 	return stringValue + other
+}
+
+func isInteger(value float64) bool {
+	return value == float64(int(value))
 }
 
 func isTruthy(value any) bool {
@@ -387,18 +503,37 @@ func isTruthy(value any) bool {
 	return true
 }
 
-func Stringify(v any) string {
+func Representation(v any) string {
 	switch v := v.(type) {
 	case nil:
 		return "nil"
 	case string:
-		return fmt.Sprint(v)
+		return fmt.Sprintf("\"%s\"", v)
 	case bool:
 		return fmt.Sprintf("%t", v)
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
+	case []any:
+		{
+			itemStrings := make([]string, len(v))
+			for i, item := range v {
+				itemStrings[i] = Representation(item)
+			}
+			return "[" + strings.Join(itemStrings, ", ") + "]"
+		}
 	case LoxCallable:
 		return v.String()
+	}
+
+	return "<object>"
+}
+
+func PrintRepresentation(v any) string {
+	switch v := v.(type) {
+	case string:
+		return fmt.Sprint(v)
+	case nil, bool, float64, []any, LoxCallable:
+		return Representation(v)
 	}
 
 	return "<object>"

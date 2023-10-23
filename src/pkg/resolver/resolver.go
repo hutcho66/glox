@@ -211,6 +211,35 @@ func (r *Resolver) VisitCallExpression(e *ast.CallExpression) any {
 	return nil
 }
 
+func (r *Resolver) VisitIndexExpression(e *ast.IndexExpression) any {
+	r.resolveExpression(e.Object())
+	r.resolveExpression(e.LeftIndex())
+	if e.RightIndex() != nil {
+		r.resolveExpression(e.RightIndex())
+	}
+	return nil
+}
+
+func (r *Resolver) VisitArrayExpression(e *ast.ArrayExpression) any {
+	for _, item := range e.Items() {
+		r.resolveExpression(item)
+	}
+	return nil
+}
+
+func (r *Resolver) VisitArrayAssignmentExpression(e *ast.ArrayAssignmentExpression) any {
+	r.resolveExpression(e.Left())
+	r.resolveExpression(e.Value())
+	return nil
+}
+
+func (r *Resolver) VisitSequenceExpression(e *ast.SequenceExpression) any {
+	for _, item := range e.Items() {
+		r.resolveExpression(item)
+	}
+	return nil
+}
+
 func (r *Resolver) VisitGroupedExpression(e *ast.GroupingExpression) any {
 	r.resolveExpression(e.Expression())
 	return nil

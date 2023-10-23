@@ -62,6 +62,6 @@ func run(source string, ipr *interpreter.Interpreter, prompt bool) {
 	last_expression_value, ok := ipr.Interpret(statements)
 
 	if prompt && ok {
-		fmt.Println(interpreter.Stringify(last_expression_value))
+		fmt.Println(interpreter.Representation(last_expression_value))
 	}
 }

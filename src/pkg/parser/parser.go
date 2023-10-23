@@ -236,7 +236,7 @@ func (p *Parser) expressionStatement() ast.Statement {
 
 func (p *Parser) expression() ast.Expression {
 	if p.check(token.LEFT_PAREN) {
-		// need to check ahead to test if this is a lambda or a group expression
+		// need to check ahead to test if this is a lambda
 		if p.checkAhead(token.RIGHT_PAREN, 1) {
 			// must be lambda with no params
 			return p.lambda()
@@ -323,9 +323,18 @@ func (p *Parser) assignment() ast.Expression {
 		equals := p.previous()
 		value := p.assignment()
 
-		if varExpr, ok := expr.(*ast.VariableExpression); ok {
-			name := varExpr.Name()
-			return ast.NewAssignmentExpression(name, value)
+		switch e := expr.(type) {
+		case *ast.VariableExpression:
+			{
+				return ast.NewAssignmentExpression(e.Name(), value)
+			}
+		case *ast.IndexExpression:
+			{
+				if e.RightIndex() != nil {
+					panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
+				}
+				return ast.NewArrayAssignmentExpression(e, value)
+			}
 		}
 
 		panic(lox_error.ParserError(equals, "Invalid assignment target"))
@@ -417,15 +426,17 @@ func (p *Parser) unary() ast.Expression {
 		return ast.NewUnaryExpression(operator, right)
 	}
 
-	return p.call()
+	return p.call_index()
 }
 
-func (p *Parser) call() ast.Expression {
+func (p *Parser) call_index() ast.Expression {
 	expr := p.primary()
 
 	for {
 		if p.match(token.LEFT_PAREN) {
 			expr = p.finishCall(expr)
+		} else if p.match(token.LEFT_BRACKET) {
+			expr = p.finishIndex(expr)
 		} else {
 			break
 		}
@@ -451,26 +462,42 @@ func (p *Parser) primary() ast.Expression {
 		return ast.NewVariableExpression(p.previous())
 	}
 	if p.match(token.LEFT_PAREN) {
-		if p.check(token.RIGHT_PAREN) {
-			// must be lambda with no params, empty group expression is invalid
-			return p.lambda()
+		exprs := p.expressionList()
+		p.consume(token.RIGHT_PAREN, "Expect ')' after expression")
+
+		if len(exprs) == 1 {
+			return ast.NewGroupingExpression(exprs[0])
+		} else {
+			return ast.NewSequenceExpression(exprs)
 		}
+	}
+	if p.match(token.LEFT_BRACKET) {
+		exprs := p.expressionList()
+		p.consume(token.RIGHT_BRACKET, "Expect ']' after array literal")
 
-		if p.check(token.IDENTIFIER) {
-			// if next is comma, must be lambda
-			if p.checkAhead(token.COMMA, 1) || p.checkAhead(token.RIGHT_PAREN, 1) && p.checkAhead(token.LAMBDA_ARROW, 2) {
-				return p.lambda()
-			}
-		}
-
-		// must be group expression
-		expr := p.expression()
-		p.consume(token.RIGHT_PAREN, "Expect ')' after expression.")
-
-		return ast.NewGroupingExpression(expr)
+		return ast.NewArrayExpression(exprs)
 	}
 
 	panic(lox_error.ParserError(p.peek(), "Expect expression."))
+}
+
+func (p *Parser) expressionList() []ast.Expression {
+	exprs := []ast.Expression{}
+	for ok := true; ok; ok = p.match(token.COMMA) {
+		exprs = append(exprs, p.expression())
+	}
+	return exprs
+}
+
+func (p *Parser) finishIndex(array ast.Expression) ast.Expression {
+	leftIndex := p.expression()
+	var rightIndex ast.Expression
+	if p.match(token.COLON) {
+		rightIndex = p.expression()
+	}
+	closingBracket := p.consume(token.RIGHT_BRACKET, "Expect ']' after index")
+
+	return ast.NewIndexExpression(array, leftIndex, rightIndex, closingBracket)
 }
 
 func (p *Parser) finishCall(callee ast.Expression) ast.Expression {

@@ -24,6 +24,10 @@ type ExpressionVisitor interface {
 	VisitAssignmentExpression(*AssignmentExpression) any
 	VisitCallExpression(*CallExpression) any
 	VisitLambdaExpression(*LambdaExpression) any
+	VisitSequenceExpression(*SequenceExpression) any
+	VisitArrayExpression(*ArrayExpression) any
+	VisitIndexExpression(*IndexExpression) any
+	VisitArrayAssignmentExpression(*ArrayAssignmentExpression) any
 }
 
 type BinaryExpression struct {
@@ -303,6 +307,39 @@ func (e AssignmentExpression) Value() Expression {
 	return e.value
 }
 
+type ArrayAssignmentExpression struct {
+	left  *IndexExpression
+	value Expression
+}
+
+func NewArrayAssignmentExpression(left *IndexExpression, value Expression) Expression {
+	return &ArrayAssignmentExpression{
+		left:  left,
+		value: value,
+	}
+}
+
+// ArrayAssignmentExpression implements Expression
+func (ArrayAssignmentExpression) expression() bool {
+	return true
+}
+
+func (e ArrayAssignmentExpression) String() string {
+	return e.left.String() + " = " + e.value.String()
+}
+
+func (e *ArrayAssignmentExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitArrayAssignmentExpression(e)
+}
+
+func (e ArrayAssignmentExpression) Left() *IndexExpression {
+	return e.left
+}
+
+func (e ArrayAssignmentExpression) Value() Expression {
+	return e.value
+}
+
 type CallExpression struct {
 	callee       Expression
 	arguments    []Expression
@@ -385,4 +422,114 @@ func (e LambdaExpression) Operator() *token.Token {
 
 func (e LambdaExpression) Function() *FunctionStatement {
 	return e.function
+}
+
+type SequenceExpression struct {
+	items []Expression
+}
+
+func NewSequenceExpression(items []Expression) Expression {
+	return &SequenceExpression{
+		items: items,
+	}
+}
+
+// SequenceExpression implements Expression
+func (SequenceExpression) expression() bool {
+	return true
+}
+
+func (e SequenceExpression) String() string {
+	items := []string{}
+	for _, item := range e.items {
+		items = append(items, item.String())
+	}
+	return fmt.Sprintf("(%s)", strings.Join(items, ", "))
+}
+
+func (e *SequenceExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitSequenceExpression(e)
+}
+
+func (e SequenceExpression) Items() []Expression {
+	return e.items
+}
+
+type ArrayExpression struct {
+	items []Expression
+}
+
+func NewArrayExpression(items []Expression) Expression {
+	return &ArrayExpression{
+		items: items,
+	}
+}
+
+// ArrayExpression implements Expression
+func (ArrayExpression) expression() bool {
+	return true
+}
+
+func (e ArrayExpression) String() string {
+	items := []string{}
+	for _, item := range e.items {
+		items = append(items, item.String())
+	}
+	return fmt.Sprintf("[%s]", strings.Join(items, ", "))
+}
+
+func (e *ArrayExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitArrayExpression(e)
+}
+
+func (e ArrayExpression) Items() []Expression {
+	return e.items
+}
+
+type IndexExpression struct {
+	object         Expression
+	leftIndex      Expression
+	rightIndex     Expression
+	closingBracket *token.Token
+}
+
+func NewIndexExpression(object, leftIndex, rightIndex Expression, closingBracket *token.Token) Expression {
+	return &IndexExpression{
+		object:         object,
+		leftIndex:      leftIndex,
+		rightIndex:     rightIndex,
+		closingBracket: closingBracket,
+	}
+}
+
+// IndexExpression implements Expression
+func (IndexExpression) expression() bool {
+	return true
+}
+
+func (e IndexExpression) String() string {
+	if e.rightIndex != nil {
+		return fmt.Sprintf("%s[%s:%s]", e.object.String(), e.leftIndex.String(), e.rightIndex.String())
+	}
+	return fmt.Sprintf("%s[%s]", e.object.String(), e.leftIndex.String())
+}
+
+func (e *IndexExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitIndexExpression(e)
+}
+
+func (e IndexExpression) Object() Expression {
+	return e.object
+}
+
+func (e IndexExpression) LeftIndex() Expression {
+	return e.leftIndex
+}
+
+func (e IndexExpression) RightIndex() Expression {
+	return e.rightIndex
+}
+
+func (e IndexExpression) ClosingBracket() *token.Token {
+	return e.closingBracket
 }

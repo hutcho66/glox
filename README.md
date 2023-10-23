@@ -4,8 +4,11 @@ The lox language was developed by Robert Nystrom for the book [Crafting Interpre
 
 This is a implementation of the language in go, with a few additions:
  - Optional semicolons - a statement must be terminated either by a semicolon or a newline
+ - Comma separated sequence expressions
  - C-style ternary operator
- - break and continue statements
+ - Arrays (maps to come)
+ - Index notation for accessing arrays and substrings of strings
+ - break and continue statements within loops
  - Lambda expressions using a JavaScript style arrow syntax
 
 ## Language Specification
@@ -68,6 +71,57 @@ Comments can be defined using `//` and must be on one line.
 var a = 5 // this is another comment
 ```
 
+### Arrays
+
+glox supports arrays which are dynamic length and type, and can include any valid glox value. 
+Arrays can only be indexed by integers, and are zero-index.
+
+Array assignment is only valid for current length of array, to grow the array you can concatenate two arrays using the `+` operator
+
+Arrays can be accessed (but not assigned) using a slice syntax, `x[1:3]`.
+
+```
+> var x = [1, 2, "hello"]
+> x[2]
+"hello"
+> x[2] = 3
+3
+> x
+[1, 2, 3]
+> x[3] = 4
+[line 1] Error at ']': Index is out of range for array
+> x = x + [4]
+[1, 2, 3, 4]
+> x[0:2]
+[1, 2]
+> x = x[0:3]
+[1, 2, 3]
+```
+
+While glox strings are not arrays, you can use array indexing and slicing to access substrings.
+
+You cannot use index notation to assign to strings, as glox strings are immutable. But you can use index notation to get a substring
+and then reassign it to the variable.
+
+```
+> var x = "hello"
+> x = x[1:5]
+"ello"
+> x[0] = "E"
+[line 1] Error at ']': Can only assign to array elements
+```
+
+A few builtin functions have been added for arrays, some of these also work on strings
+
+```
+> var arr = [1,2,3,4]
+> var str = "hello"
+> len(arr)
+4
+> len(str)
+5
+```
+
 ### Statement Termination
 
 glox programs are a sequence of statements. In glox, statements are **not** expressions (even expression statements) and
@@ -97,7 +151,7 @@ Note that assignment is an expression but declaration is not.
 
 ### Control Flow and Looping
 
-glox has `if`-`else` statements which work like any other language. Then and else statements can be singular statements or block statements.
+glox has `if-else` statements which work like any other language. Then and else statements can be singular statements or block statements.
 
 ```
 > if (6 > 5) print(true); else print(false)
@@ -147,6 +201,21 @@ glox supports break and continue statements
 3
 4
 5
+```
+
+Comma separated sequence expressions can be used if there's a need to run more than one expression
+in a for loop increment or initializer
+```
+> var x
+> var y
+> for ((x=0, y=10); x != y; (x = x+1, y=y-1)) {
+    print(x + " " + y)
+}
+0 10
+1 9
+2 8
+3 7
+4 6
 ```
 
 ### Functions
