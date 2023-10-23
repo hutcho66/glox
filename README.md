@@ -2,6 +2,20 @@
 
 The lox language was developed by Robert Nystrom for the book [Crafting Interpreters](https://craftinginterpreters.com/).
 
+This is a implementation of the language in go, with a few additions:
+
+- Optional semicolons - a statement must be terminated either by a semicolon or a newline
+- Comma separated sequence expressions
+- C-style ternary operator
+- Arrays and string-keyed maps
+- for..of loops on arrays
+- Index notation for accessing arrays, maps and substrings of strings
+- break and continue statements within loops
+- Lambda expressions using a JavaScript style arrow syntax
+- Additonal builtin functions, e.g. `len`, `map`, `filter`, `reduce`
+
+
+## Table of Contents
 - [Language Specification](#language-specification)
   - [Basic Operations](#basic-operations)
   - [Index notation for strings](#index-notation-for-strings)
@@ -14,19 +28,6 @@ The lox language was developed by Robert Nystrom for the book [Crafting Interpre
   - [Build and run immediately](#build-and-run-immediately)
   - [Build and run from local directory](#build-and-run-from-local-directory)
   - [Build and install to GOPATH](#build-and-install-to-gopath)
-
-
-This is a implementation of the language in go, with a few additions:
-
-- Optional semicolons - a statement must be terminated either by a semicolon or a newline
-- Comma separated sequence expressions
-- C-style ternary operator
-- Arrays and string-keyed maps
-- for..of loops on arrays
-- Index notation for accessing arrays, maps and substrings of strings
-- break and continue statements within loops
-- Lambda expressions using a JavaScript style arrow syntax
-- Additonal builtin functions, e.g. `len`, `map`, `filter`, `reduce`
 
 ## Language Specification
 
