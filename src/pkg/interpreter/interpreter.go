@@ -24,6 +24,9 @@ func NewInterpreter() *Interpreter {
 	globals.define("print", NewPrintNative())
 	globals.define("string", NewStringNative())
 	globals.define("len", NewLengthNative())
+	globals.define("map", NewMapNative())
+	globals.define("filter", NewFilterNative())
+	globals.define("reduce", NewReduceNative())
 
 	return &Interpreter{
 		globals:     globals,

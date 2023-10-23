@@ -6,7 +6,7 @@ This is a implementation of the language in go, with a few additions:
  - Optional semicolons - a statement must be terminated either by a semicolon or a newline
  - Comma separated sequence expressions
  - C-style ternary operator
- - Arrays (maps to come)
+ - Arrays
  - Index notation for accessing arrays and substrings of strings
  - break and continue statements within loops
  - Lambda expressions using a JavaScript style arrow syntax
@@ -71,6 +71,23 @@ Comments can be defined using `//` and must be on one line.
 var a = 5 // this is another comment
 ```
 
+### Index notation for strings
+
+Index notation can be used to retrieve a substring from a string. glox strings are immutable,
+so you cannot use index notation to assign to strings.
+
+The `len` builtin function works on strings
+
+```
+> var x = "hello"
+> x = x[1:5]
+"ello"
+> x[0] = "E"
+[line 1] Error at ']': Can only assign to array elements
+> len(x)
+4
+```
+
 ### Arrays
 
 glox supports arrays which are dynamic length and type, and can include any valid glox value. 
@@ -98,28 +115,31 @@ Arrays can be accessed (but not assigned) using a slice syntax, `x[1:3]`.
 [1, 2, 3]
 ```
 
-While glox strings are not arrays, you can use array indexing and slicing to access substrings.
-
-You cannot use index notation to assign to strings, as glox strings are immutable. But you can use index notation to get a substring
-and then reassign it to the variable.
-
-```
-> var x = "hello"
-> x = x[1:5]
-"ello"
-> x[0] = "E"
-[line 1] Error at ']': Can only assign to array elements
-```
-
-A few builtin functions have been added for arrays, some of these also work on strings
+A few builtin functions have been added for arrays
+- `len` returns the length of the array
+- `map` applies a function to the elements of an array and returns a new array with the results
+- `filter` applies a function to the elements of an array and returns a new array with the elements of the original array, if the function returned a truthy value
+- `reduce` takes an initial value, an array, and an accumulator function. It applies the function to each element of the array in turn, accumulating the result, beginning with the initial value. The accumulator function must take two parameters: the accumulated value and the element; and return the new accumulated value
 
 ```
 > var arr = [1,2,3,4]
-> var str = "hello"
 > len(arr)
 4
-> len(str)
-5
+
+> map(arr, a => a*2)
+[2, 4, 6, 8]
+
+> arr = [1,-2,3,-4]
+> filter(arr, a => a > 0)
+[1, 3]
+
+> arr = [1,2,3,4,5]
+> reduce(0, arr, (acc, el) => acc + el) // should add the elements in the array
+15
+
+> var sum = arr => reduce(0, arr, (acc, el) => acc + el)
+> sum([1,2,3,4,5])
+15
 ```
 
 ### Statement Termination
