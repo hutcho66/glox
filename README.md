@@ -275,9 +275,7 @@ in a for loop increment or initializer
 ```
 > var x
 > var y
-> for ((x=0, y=10); x != y; (x = x+1, y=y-1)) {
-    print(x + " " + y)
-}
+> for ((x=0, y=10); x != y; (x = x+1, y=y-1)) print(x + " " + y)
 0 10
 1 9
 2 8
