@@ -26,8 +26,9 @@ type ExpressionVisitor interface {
 	VisitLambdaExpression(*LambdaExpression) any
 	VisitSequenceExpression(*SequenceExpression) any
 	VisitArrayExpression(*ArrayExpression) any
+	VisitMapExpression(*MapExpression) any
 	VisitIndexExpression(*IndexExpression) any
-	VisitArrayAssignmentExpression(*ArrayAssignmentExpression) any
+	VisitIndexedAssignmentExpression(*IndexedAssignmentExpression) any
 }
 
 type BinaryExpression struct {
@@ -307,36 +308,36 @@ func (e AssignmentExpression) Value() Expression {
 	return e.value
 }
 
-type ArrayAssignmentExpression struct {
+type IndexedAssignmentExpression struct {
 	left  *IndexExpression
 	value Expression
 }
 
-func NewArrayAssignmentExpression(left *IndexExpression, value Expression) Expression {
-	return &ArrayAssignmentExpression{
+func NewIndexedAssignmentExpressionn(left *IndexExpression, value Expression) Expression {
+	return &IndexedAssignmentExpression{
 		left:  left,
 		value: value,
 	}
 }
 
-// ArrayAssignmentExpression implements Expression
-func (ArrayAssignmentExpression) expression() bool {
+// IndexedAssignmentExpression implements Expression
+func (IndexedAssignmentExpression) expression() bool {
 	return true
 }
 
-func (e ArrayAssignmentExpression) String() string {
+func (e IndexedAssignmentExpression) String() string {
 	return e.left.String() + " = " + e.value.String()
 }
 
-func (e *ArrayAssignmentExpression) Accept(v ExpressionVisitor) any {
-	return v.VisitArrayAssignmentExpression(e)
+func (e *IndexedAssignmentExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitIndexedAssignmentExpression(e)
 }
 
-func (e ArrayAssignmentExpression) Left() *IndexExpression {
+func (e IndexedAssignmentExpression) Left() *IndexExpression {
 	return e.left
 }
 
-func (e ArrayAssignmentExpression) Value() Expression {
+func (e IndexedAssignmentExpression) Value() Expression {
 	return e.value
 }
 
@@ -484,6 +485,49 @@ func (e *ArrayExpression) Accept(v ExpressionVisitor) any {
 
 func (e ArrayExpression) Items() []Expression {
 	return e.items
+}
+
+type MapExpression struct {
+	openingBrace *token.Token
+	keys         []Expression
+	values       []Expression
+}
+
+func NewMapExpression(keys, values []Expression, openingBrace *token.Token) Expression {
+	return &MapExpression{
+		openingBrace: openingBrace,
+		keys:         keys,
+		values:       values,
+	}
+}
+
+// MapExpression implements Expression
+func (MapExpression) expression() bool {
+	return true
+}
+
+func (e MapExpression) String() string {
+	buf := []string{}
+	for i := range e.keys {
+		buf = append(buf, e.keys[i].String()+": "+e.values[i].String())
+	}
+	return fmt.Sprintf("{%s}", strings.Join(buf, ", "))
+}
+
+func (e *MapExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitMapExpression(e)
+}
+
+func (e MapExpression) Keys() []Expression {
+	return e.keys
+}
+
+func (e MapExpression) Values() []Expression {
+	return e.values
+}
+
+func (e MapExpression) OpeningBrace() *token.Token {
+	return e.openingBrace
 }
 
 type IndexExpression struct {

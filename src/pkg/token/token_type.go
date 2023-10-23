@@ -47,6 +47,7 @@ const (
 	FALSE    = "FALSE"
 	FUN      = "FUN"
 	FOR      = "FOR"
+	OF       = "OF"
 	IF       = "IF"
 	NIL      = "NIL"
 	OR       = "OR"

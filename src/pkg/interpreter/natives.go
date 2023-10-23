@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"golang.org/x/exp/maps"
 )
 
 type ClockNative struct{}
@@ -72,12 +74,12 @@ func (LengthNative) Arity() int {
 
 func (LengthNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	switch val := arguments[0].(type) {
-	case []any:
+	case LoxArray:
 		return float64(len(val)), nil
 	case string:
 		return float64(len(val)), nil
 	}
-	return nil, errors.New("can only call length on arrays or strings")
+	return nil, errors.New("can only call len on arrays or strings")
 }
 
 func (LengthNative) String() string {
@@ -88,6 +90,28 @@ func NewLengthNative() LoxCallable {
 	return LengthNative{}
 }
 
+type SizeNative struct{}
+
+func (SizeNative) Arity() int {
+	return 1
+}
+
+func (SizeNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+	switch val := arguments[0].(type) {
+	case LoxMap:
+		return float64(len(val)), nil
+	}
+	return nil, errors.New("can only call size on maps")
+}
+
+func (SizeNative) String() string {
+	return "<native fn size>"
+}
+
+func NewSizeNative() LoxCallable {
+	return SizeNative{}
+}
+
 type MapNative struct{}
 
 func (MapNative) Arity() int {
@@ -95,7 +119,7 @@ func (MapNative) Arity() int {
 }
 
 func (MapNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
-	array, isArray := arguments[0].([]any)
+	array, isArray := arguments[0].(LoxArray)
 	function, isFunction := arguments[1].(LoxCallable)
 
 	if !isArray {
@@ -106,7 +130,7 @@ func (MapNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
 		return nil, errors.New("second argument of map must be an function taking a single parameter")
 	}
 
-	results := make([]any, len(array))
+	results := make(LoxArray, len(array))
 	for i, element := range array {
 		result, err := function.Call(interpreter, []any{element})
 		if err != nil {
@@ -134,7 +158,7 @@ func (ReduceNative) Arity() int {
 
 func (ReduceNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	initializer := arguments[0]
-	array, isArray := arguments[1].([]any)
+	array, isArray := arguments[1].(LoxArray)
 	function, isFunction := arguments[2].(LoxCallable)
 
 	if !isArray {
@@ -172,7 +196,7 @@ func (FilterNative) Arity() int {
 }
 
 func (FilterNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
-	array, isArray := arguments[0].([]any)
+	array, isArray := arguments[0].(LoxArray)
 	function, isFunction := arguments[1].(LoxCallable)
 
 	if !isArray {
@@ -183,7 +207,7 @@ func (FilterNative) Call(interpreter *Interpreter, arguments []any) (any, error)
 		return nil, errors.New("second argument of map must be an function taking a single parameter")
 	}
 
-	results := make([]any, 0, len(array))
+	results := make(LoxArray, 0, len(array))
 	for _, element := range array {
 		result, err := function.Call(interpreter, []any{element})
 		if err != nil {
@@ -203,4 +227,96 @@ func (FilterNative) String() string {
 
 func NewFilterNative() LoxCallable {
 	return FilterNative{}
+}
+
+type HasKeyNative struct{}
+
+func (HasKeyNative) Arity() int {
+	return 2
+}
+
+func (HasKeyNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+	m, isMap := arguments[0].(LoxMap)
+	key, isString := arguments[1].(string)
+
+	if !isMap {
+		return nil, errors.New("first argument of hasKey must be a map")
+	}
+
+	if !isString {
+		return nil, errors.New("second argument of hasKey must be a string")
+	}
+
+	hash := Hash(key)
+
+	_, ok := m[hash]
+	return ok, nil
+}
+
+func (HasKeyNative) String() string {
+	return "<native fn hasKey>"
+}
+
+func NewHasKeyNative() LoxCallable {
+	return HasKeyNative{}
+}
+
+type ValuesNative struct{}
+
+func (ValuesNative) Arity() int {
+	return 1
+}
+
+func (ValuesNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+	m, isMap := arguments[0].(LoxMap)
+
+	if !isMap {
+		return nil, errors.New("argument of values must be a map")
+	}
+
+	pairs := maps.Values(m)
+	values := make(LoxArray, len(pairs))
+	for i, pair := range pairs {
+		values[i] = pair.value
+	}
+
+	return values, nil
+}
+
+func (ValuesNative) String() string {
+	return "<native fn values>"
+}
+
+func NewValuesNative() LoxCallable {
+	return ValuesNative{}
+}
+
+type KeysNative struct{}
+
+func (KeysNative) Arity() int {
+	return 1
+}
+
+func (KeysNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+	m, isMap := arguments[0].(LoxMap)
+
+	if !isMap {
+		return nil, errors.New("argument of keys must be a map")
+	}
+
+	pairs := maps.Values(m)
+	keys := make(LoxArray, len(pairs))
+	for i, pair := range pairs {
+		keys[i] = pair.key
+	}
+
+	return keys, nil
+}
+
+func (KeysNative) String() string {
+	return "<native fn keys>"
+}
+
+func NewKeysNative() LoxCallable {
+	return KeysNative{}
 }

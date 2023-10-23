@@ -6,10 +6,12 @@ This is a implementation of the language in go, with a few additions:
  - Optional semicolons - a statement must be terminated either by a semicolon or a newline
  - Comma separated sequence expressions
  - C-style ternary operator
- - Arrays
- - Index notation for accessing arrays and substrings of strings
+ - Arrays and string-keyed maps
+ - for..of loops on arrays
+ - Index notation for accessing arrays, maps and substrings of strings
  - break and continue statements within loops
  - Lambda expressions using a JavaScript style arrow syntax
+ - Selection of native builtin functions, including `clock`, `len`, `map`, `filter`, `reduce`
 
 ## Language Specification
 
@@ -142,6 +144,51 @@ A few builtin functions have been added for arrays
 15
 ```
 
+### Maps
+glox has maps with string keys. Values can be any valid glox value. The default value of maps is `nil`.
+```
+> var x = {"foo": "bar"}
+> x["foo"]
+"bar"
+> x["bar"] = "foo"
+"foo"
+> x["goo"]
+nil
+```
+
+The builtin function `size` gets the number of elements in the map
+```
+> var x = {"foo": 0, "bar": 1}
+> size(x)
+2
+```
+
+In the case that you want to store `nil` as a valid value in a map, the `hasKey` builtin can be used
+to test for the presence of a key
+```
+> var x = {"foo": nil}
+> x["foo"]
+nil
+> x["bar"]
+nil
+
+> hasKey(x, "foo")
+true
+> hasKey(x, "bar")
+false
+```
+
+Some care needs to be taken when returning empty maps from lambda expressions
+```
+> var x = () => {}  // this is a lambda with an empty function body
+> x()
+nil
+
+> var x = () => { return {} } // this is a lambda that returns an empty map
+> x()
+<map>
+```
+
 ### Statement Termination
 
 glox programs are a sequence of statements. In glox, statements are **not** expressions (even expression statements) and
@@ -236,6 +283,28 @@ in a for loop increment or initializer
 2 8
 3 7
 4 6
+```
+
+Finally, glox supports for..of loops on arrays. This is also useful for looping through maps, 
+using the builtin functions `keys` and `values`. Note that maps are unordered.
+```
+> var arr = [1,2,3,4]
+> for (var e of arr) print(e*2)
+2
+4
+6
+8
+
+> var mp = {"a": 1, "b": 2, "c": 3}
+> for (var key of values(mp)) print(key)
+1
+3
+2
+
+> for (var key of keys(mp)) print(key + ":" + mp[key])
+a:1
+c:3
+b:2
 ```
 
 ### Functions

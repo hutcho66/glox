@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,10 @@ func NewInterpreter() *Interpreter {
 	globals.define("map", NewMapNative())
 	globals.define("filter", NewFilterNative())
 	globals.define("reduce", NewReduceNative())
+	globals.define("hasKey", NewHasKeyNative())
+	globals.define("size", NewSizeNative())
+	globals.define("values", NewValuesNative())
+	globals.define("keys", NewKeysNative())
 
 	return &Interpreter{
 		globals:     globals,
@@ -131,6 +136,57 @@ func (i *Interpreter) VisitLoopStatement(s *ast.LoopStatement) {
 		// panic-defer works with continue statements
 		i.executeLoopBody(s.Body(), s.Increment())
 	}
+}
+
+func (i *Interpreter) VisitForEachStatement(s *ast.ForEachStatement) {
+	outerEnvironment := i.environment
+
+	// catch break statement
+	defer func() {
+		if val := recover(); val != nil {
+			if val != LoxBreak {
+				// repanic - not a break statement
+				panic(val)
+			}
+
+			// this is necessary because break is usually called inside a block
+			// and this panic will stop that block exiting properly
+			i.environment = outerEnvironment
+		}
+	}()
+
+	// retrieve the array, it must exists in the outer scope
+	a := i.evaluate(s.Array())
+	array, ok := a.(LoxArray)
+	if !ok {
+		panic(lox_error.RuntimeError(s.VariableName(), "for-of loops are only valid on arrays"))
+	}
+	if len(array) == 0 {
+		return
+	}
+
+	// start a new scope and create the loop variable, initialized to first element of array
+	i.environment = NewEnclosingEnvironment(i.environment)
+	loop_position := 0
+	i.environment.define(s.VariableName().GetLexeme(), array[loop_position])
+
+	// loop through array
+	for {
+		// execute the loop
+		i.executeLoopBody(s.Body(), nil)
+
+		// reassign loop variable to next element of array
+		loop_position += 1
+		if loop_position < len(array) {
+			i.environment.assign(s.VariableName(), array[loop_position])
+		} else {
+			// exit loop, all done
+			break
+		}
+	}
+
+	// restore environment
+	i.environment = outerEnvironment
 }
 
 func (i *Interpreter) executeLoopBody(body ast.Statement, increment ast.Expression) {
@@ -247,7 +303,7 @@ func (i *Interpreter) VisitSequenceExpression(e *ast.SequenceExpression) any {
 
 func (i *Interpreter) VisitArrayExpression(e *ast.ArrayExpression) any {
 	// represent arrays by slices of any
-	array := make([]any, len(e.Items()))
+	array := make(LoxArray, len(e.Items()))
 	for idx, item := range e.Items() {
 		array[idx] = i.evaluate(item)
 	}
@@ -255,7 +311,23 @@ func (i *Interpreter) VisitArrayExpression(e *ast.ArrayExpression) any {
 	return array
 }
 
-func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
+func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
+	m := make(LoxMap, len(e.Keys()))
+	for idx := range e.Keys() {
+		key, isString := i.evaluate(e.Keys()[idx]).(string)
+		if !isString {
+			panic(lox_error.RuntimeError(e.OpeningBrace(), "map keys must be strings"))
+		}
+		hash := Hash(key)
+		value := i.evaluate(e.Values()[idx])
+
+		m[hash] = MapPair{key: key, value: value}
+	}
+
+	return m
+}
+
+func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 	object := i.evaluate(e.Object())
 	leftIndex, leftIsNumber := i.evaluate(e.LeftIndex()).(float64)
 	var (
@@ -275,11 +347,11 @@ func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
 	}
 
 	switch val := object.(type) {
-	case []any:
+	case LoxArray:
 		{
 			if leftIndex < 0 || int(leftIndex) >= len(val) ||
 				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
-				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range for array"))
+				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range"))
 			}
 			if rightIsNumber && (leftIndex > rightIndex) {
 				panic(lox_error.RuntimeError(e.ClosingBracket(), "Right index of slice must be greater or equal to left index"))
@@ -294,7 +366,7 @@ func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
 		{
 			if leftIndex < 0 || int(leftIndex) >= len(val) ||
 				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
-				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range for array"))
+				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range"))
 			}
 			if rightIsNumber && (leftIndex > rightIndex) {
 				panic(lox_error.RuntimeError(e.ClosingBracket(), "Right index of slice must be greater or equal to left index"))
@@ -305,20 +377,44 @@ func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
 				return string(val[int(leftIndex)]) // go will return a byte
 			}
 		}
+	default:
+		panic(lox_error.RuntimeError(e.ClosingBracket(), "Unreachable"))
 	}
-
-	panic(lox_error.RuntimeError(e.ClosingBracket(), "Can only index arrays"))
 }
 
-func (i *Interpreter) VisitArrayAssignmentExpression(e *ast.ArrayAssignmentExpression) any {
-	array, isArray := i.evaluate(e.Left().Object()).([]any)
+func (i *Interpreter) mapIndexExpression(e *ast.IndexExpression) any {
+	object := i.evaluate(e.Object()).(LoxMap)
+	key, isString := i.evaluate(e.LeftIndex()).(string)
+
+	if e.RightIndex() != nil {
+		panic(lox_error.RuntimeError(e.ClosingBracket(), "Cannot slice maps"))
+	}
+
+	if !isString {
+		panic(lox_error.RuntimeError(e.ClosingBracket(), "Maps can only be indexed with strings"))
+	}
+
+	hash := Hash(key)
+
+	return object[hash].value
+}
+
+func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
+	object := i.evaluate(e.Object())
+	switch object.(type) {
+	case LoxArray, string:
+		return i.arrayIndexExpression(e)
+	case LoxMap:
+		return i.mapIndexExpression(e)
+	}
+	panic(lox_error.RuntimeError(e.ClosingBracket(), "Can only index arrays, strings and maps"))
+}
+
+func (i *Interpreter) arrayIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
+	array, _ := i.evaluate(e.Left().Object()).(LoxArray)
 	index, isNumber := i.evaluate(e.Left().LeftIndex()).(float64)
 
 	// don't need to check for right index as using a slice for assignment is a parser error
-
-	if !isArray {
-		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Can only assign to array elements"))
-	}
 	if !isNumber || !isInteger(index) {
 		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Index must be integer"))
 	}
@@ -329,6 +425,31 @@ func (i *Interpreter) VisitArrayAssignmentExpression(e *ast.ArrayAssignmentExpre
 	value := i.evaluate(e.Value())
 	array[int(index)] = value
 	return value
+}
+
+func (i *Interpreter) mapIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
+	m, _ := i.evaluate(e.Left().Object()).(LoxMap)
+	key, isString := i.evaluate(e.Left().LeftIndex()).(string)
+
+	if !isString {
+		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "map keys must be strings"))
+	}
+
+	hash := Hash(key)
+	value := i.evaluate(e.Value())
+	m[hash] = MapPair{key: key, value: value}
+	return value
+}
+
+func (i *Interpreter) VisitIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
+	object := i.evaluate(e.Left().Object())
+	switch object.(type) {
+	case LoxArray:
+		return i.arrayIndexedAssignmentExpression(e)
+	case LoxMap:
+		return i.mapIndexedAssignmentExpression(e)
+	}
+	panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Can only assign to arrays and maps"))
 }
 
 func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) any {
@@ -387,8 +508,8 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 				return leftNum + rightNum
 			}
 
-			leftArr, leftIsArray := left.([]any)
-			rightArr, rightIsArray := right.([]any)
+			leftArr, leftIsArray := left.(LoxArray)
+			rightArr, rightIsArray := right.(LoxArray)
 			if leftIsArray && rightIsArray {
 				return append(leftArr, rightArr...)
 			}
@@ -444,7 +565,7 @@ func (i *Interpreter) VisitLambdaExpression(e *ast.LambdaExpression) any {
 
 func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
 	callee := i.evaluate(e.Callee())
-	argValues := []any{}
+	argValues := LoxArray{}
 	for _, argExpr := range e.Arguments() {
 		argValues = append(argValues, i.evaluate(argExpr))
 	}
@@ -516,7 +637,7 @@ func Representation(v any) string {
 		return fmt.Sprintf("%t", v)
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
-	case []any:
+	case LoxArray:
 		{
 			itemStrings := make([]string, len(v))
 			for i, item := range v {
@@ -524,6 +645,8 @@ func Representation(v any) string {
 			}
 			return "[" + strings.Join(itemStrings, ", ") + "]"
 		}
+	case LoxMap:
+		return "<map>"
 	case LoxCallable:
 		return v.String()
 	}
@@ -535,9 +658,15 @@ func PrintRepresentation(v any) string {
 	switch v := v.(type) {
 	case string:
 		return fmt.Sprint(v)
-	case nil, bool, float64, []any, LoxCallable:
+	case nil, bool, float64, LoxArray, LoxCallable:
 		return Representation(v)
 	}
 
 	return "<object>"
+}
+
+func Hash(v string) int {
+	h := fnv.New64a()
+	h.Write([]byte(v))
+	return int(h.Sum64())
 }

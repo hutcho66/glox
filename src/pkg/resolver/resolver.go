@@ -183,6 +183,21 @@ func (r *Resolver) VisitLoopStatement(s *ast.LoopStatement) {
 	r.loop = false
 }
 
+func (r *Resolver) VisitForEachStatement(s *ast.ForEachStatement) {
+	r.resolveExpression(s.Array())
+
+	// we need to begin a new scope here to contain the loop variable
+	r.beginScope()
+	r.declare(s.VariableName())
+	r.define(s.VariableName())
+
+	r.loop = true
+	r.resolveStatement(s.Body())
+	r.loop = false
+
+	r.endScope()
+}
+
 // Resolver implements ast.ExpressionVisitor.
 func (r *Resolver) VisitAssignmentExpression(e *ast.AssignmentExpression) any {
 	r.resolveExpression(e.Value())
@@ -227,7 +242,15 @@ func (r *Resolver) VisitArrayExpression(e *ast.ArrayExpression) any {
 	return nil
 }
 
-func (r *Resolver) VisitArrayAssignmentExpression(e *ast.ArrayAssignmentExpression) any {
+func (r *Resolver) VisitMapExpression(e *ast.MapExpression) any {
+	for i := range e.Keys() {
+		r.resolveExpression(e.Keys()[i])
+		r.resolveExpression(e.Values()[i])
+	}
+	return nil
+}
+
+func (r *Resolver) VisitIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
 	r.resolveExpression(e.Left())
 	r.resolveExpression(e.Value())
 	return nil

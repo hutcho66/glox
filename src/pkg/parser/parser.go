@@ -115,7 +115,12 @@ func (p *Parser) statement() ast.Statement {
 		return p.forStatement()
 	}
 
-	if p.match(token.LEFT_BRACE) {
+	if p.check(token.LEFT_BRACE) {
+		if p.checkAhead(token.RIGHT_BRACE, 1) || (p.checkAhead(token.STRING, 1) && !p.checkAhead(token.COLON, 2)) {
+			// this looks like a map
+			return p.expressionStatement()
+		}
+		p.match(token.LEFT_BRACE)
 		return ast.NewBlockStatement(p.block())
 	}
 
@@ -187,6 +192,20 @@ func (p *Parser) whileStatement() ast.Statement {
 func (p *Parser) forStatement() ast.Statement {
 	p.consume(token.LEFT_PAREN, "Expect '(' after 'for'")
 
+	if p.check(token.VAR) && p.checkAhead(token.OF, 2) {
+		// for (IDENT of ARRAY)format
+		p.match(token.VAR)
+		name := p.consume(token.IDENTIFIER, "Expect variable name after var")
+		p.consume(token.OF, "Expect 'of' after variable name")
+		array := p.expression()
+		p.consume(token.RIGHT_PAREN, "Expect ')' after for clauses")
+
+		body := p.statement()
+
+		return ast.NewForEachStatement(name, array, body)
+	}
+
+	// else continue with c-style loop
 	var initializer ast.Statement
 	if p.match(token.SEMICOLON) {
 		initializer = nil
@@ -283,10 +302,8 @@ func (p *Parser) lambda() ast.Expression {
 	operator := p.consume(token.LAMBDA_ARROW, "Expect '=>' after lambda parameters")
 
 	var body []ast.Statement
-	if p.match(token.LEFT_BRACE) {
-		// block lambda
-		body = p.block()
-	} else {
+	if !p.check(token.LEFT_BRACE) || (p.checkAhead(token.STRING, 1) && p.checkAhead(token.COLON, 2)) {
+		// this is an expression return lambda
 		line := p.peek().GetLine()
 		expression := p.expression()
 		// add implicit return statement
@@ -294,6 +311,10 @@ func (p *Parser) lambda() ast.Expression {
 		body = []ast.Statement{
 			ast.NewReturnStatement(token, expression),
 		}
+	} else {
+		// this is a block lambda
+		p.match(token.LEFT_BRACE)
+		body = p.block()
 	}
 
 	function := ast.NewFunctionStatement(nil, parameters, body)
@@ -333,7 +354,7 @@ func (p *Parser) assignment() ast.Expression {
 				if e.RightIndex() != nil {
 					panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
 				}
-				return ast.NewArrayAssignmentExpression(e, value)
+				return ast.NewIndexedAssignmentExpressionn(e, value)
 			}
 		}
 
@@ -462,6 +483,10 @@ func (p *Parser) primary() ast.Expression {
 		return ast.NewVariableExpression(p.previous())
 	}
 	if p.match(token.LEFT_PAREN) {
+		if p.match(token.RIGHT_PAREN) {
+			// empty sequence expression
+			return ast.NewSequenceExpression([]ast.Expression{})
+		}
 		exprs := p.expressionList()
 		p.consume(token.RIGHT_PAREN, "Expect ')' after expression")
 
@@ -472,19 +497,53 @@ func (p *Parser) primary() ast.Expression {
 		}
 	}
 	if p.match(token.LEFT_BRACKET) {
+		if p.match(token.RIGHT_BRACKET) {
+			// empty array
+			return ast.NewArrayExpression([]ast.Expression{})
+		}
 		exprs := p.expressionList()
 		p.consume(token.RIGHT_BRACKET, "Expect ']' after array literal")
 
 		return ast.NewArrayExpression(exprs)
+	}
+	if p.match(token.LEFT_BRACE) {
+		openingBrace := p.previous()
+		// eat any newlines, they are allowed before first key-pair
+		p.eatNewLines()
+
+		if p.match(token.RIGHT_BRACE) {
+			// empty array
+			return ast.NewMapExpression([]ast.Expression{}, []ast.Expression{}, openingBrace)
+		}
+
+		keys := []ast.Expression{}
+		values := []ast.Expression{}
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			p.eatNewLines()
+
+			keys = append(keys, p.expression())
+			p.consume(token.COLON, "Expect ':' between key and value in map literal")
+			values = append(values, p.expression())
+
+			p.eatNewLines()
+		}
+		p.consume(token.RIGHT_BRACE, "Expect '}' after map literal")
+
+		return ast.NewMapExpression(keys, values, openingBrace)
 	}
 
 	panic(lox_error.ParserError(p.peek(), "Expect expression."))
 }
 
 func (p *Parser) expressionList() []ast.Expression {
+	// eat any newlines, they are allowed before first expression in list
+	p.eatNewLines()
+
 	exprs := []ast.Expression{}
 	for ok := true; ok; ok = p.match(token.COMMA) {
+		p.eatNewLines()
 		exprs = append(exprs, p.expression())
+		p.eatNewLines()
 	}
 	return exprs
 }
@@ -537,8 +596,11 @@ func (p *Parser) endStatement() {
 	}
 
 	// Consume as many extra newlines as possible
+	p.eatNewLines()
+}
+
+func (p *Parser) eatNewLines() {
 	for p.match(token.NEW_LINE) {
-		continue
 	}
 }
 

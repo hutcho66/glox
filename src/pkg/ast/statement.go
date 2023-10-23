@@ -19,6 +19,7 @@ type StatementVisitor interface {
 	VisitBlockStatement(*BlockStatement)
 	VisitIfStatement(*IfStatement)
 	VisitLoopStatement(*LoopStatement)
+	VisitForEachStatement(*ForEachStatement)
 	VisitFunctionStatement(*FunctionStatement)
 	VisitReturnStatement(*ReturnStatement)
 	VisitBreakStatement(*BreakStatement)
@@ -191,6 +192,44 @@ func (s LoopStatement) Increment() Expression {
 
 func (s *LoopStatement) Accept(v StatementVisitor) {
 	v.VisitLoopStatement(s)
+}
+
+type ForEachStatement struct {
+	variableName *token.Token
+	array        Expression
+	body         Statement
+}
+
+func NewForEachStatement(variableName *token.Token, array Expression, body Statement) *ForEachStatement {
+	return &ForEachStatement{
+		variableName: variableName,
+		array:        array,
+		body:         body,
+	}
+}
+
+func (ForEachStatement) statement() bool {
+	return true
+}
+
+func (s ForEachStatement) String() string {
+	return fmt.Sprintf("foreach loop - variable: %s, array: %s, loop: %s", s.variableName.GetLexeme(), s.array.String(), s.body.String())
+}
+
+func (s ForEachStatement) VariableName() *token.Token {
+	return s.variableName
+}
+
+func (s ForEachStatement) Array() Expression {
+	return s.array
+}
+
+func (s ForEachStatement) Body() Statement {
+	return s.body
+}
+
+func (s *ForEachStatement) Accept(v StatementVisitor) {
+	v.VisitForEachStatement(s)
 }
 
 type FunctionStatement struct {
