@@ -26,6 +26,10 @@ jobs:
       with:
         coverage-file: ./cover.out
         report: true
-        chart: true
-        amend: true
+        chart: false
+        amend: false
         reuse-go: true
+      if: |
+        matrix.os == 'ubuntu-latest' &&
+        github.event_name == 'push'  
+      continue-on-error: true
