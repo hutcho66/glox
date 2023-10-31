@@ -21,18 +21,12 @@ jobs:
     - name: Run Test
       run: go test ./src/pkg/interpreter/interpreter_test.go -coverprofile=./cover.out -covermode=atomic -coverpkg=./src/pkg/...
 
-    - name: check test coverage
-      uses: vladopajic/go-test-coverage@v2
+    - name: Update coverage report
+      uses: ncruces/go-coverage-report@v0
       with:
-        # Configure action using config file (option 1)
-        config: ./.testcoverage.yml
-        
-        # Configure action by specifying input parameters individually (option 2)
-        profile: cover.out
-        local-prefix: github.com/hutcho66/glox/src/pkg
-        threshold-file: 0
-        threshold-package: 0
-        threshold-total: 80
-
-        git-branch: badges
-        git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
+        coverage-file: ./cover.out
+        output-dir: coverage
+        report: true
+        chart: true
+        amend: true
+        reuse-go: true
