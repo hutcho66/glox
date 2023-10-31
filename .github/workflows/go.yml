@@ -36,7 +36,6 @@ jobs:
 
     - name: make coverage badge
       uses: action-badges/core@0.3.0
-      permissions: write-all
       with:
         label: coverage
         message: ${{ steps.coverage.outputs.badge-text }}
