@@ -21,17 +21,9 @@ func NewInterpreter() *Interpreter {
 	globals := NewEnvironment()
 
 	// add native functions
-	globals.define("clock", NewClockNative())
-	globals.define("print", NewPrintNative())
-	globals.define("string", NewStringNative())
-	globals.define("len", NewLengthNative())
-	globals.define("map", NewMapNative())
-	globals.define("filter", NewFilterNative())
-	globals.define("reduce", NewReduceNative())
-	globals.define("hasKey", NewHasKeyNative())
-	globals.define("size", NewSizeNative())
-	globals.define("values", NewValuesNative())
-	globals.define("keys", NewKeysNative())
+	for _, fn := range Natives {
+		globals.define(fn.Name(), fn)
+	}
 
 	return &Interpreter{
 		globals:     globals,
@@ -79,7 +71,7 @@ func (i *Interpreter) execute(s ast.Statement) (ok bool) {
 func (i *Interpreter) executeFinalExpressionStatement(s *ast.ExpressionStatement) (result any, ok bool) {
 	// instead of using ExpressionStatement visitor which returns nil,
 	// visit the Expression itself
-	return s.Expr().Accept(i), true
+	return s.Expr.Accept(i), true
 }
 
 func (i *Interpreter) executeBlock(s []ast.Statement, environment *Environment) {
@@ -98,19 +90,19 @@ func (i *Interpreter) executeBlock(s []ast.Statement, environment *Environment) 
 }
 
 func (i *Interpreter) VisitBlockStatement(s *ast.BlockStatement) {
-	i.executeBlock(s.Statements(), NewEnclosingEnvironment(i.environment))
+	i.executeBlock(s.Statements, NewEnclosingEnvironment(i.environment))
 }
 
 func (i *Interpreter) VisitExpressionStatement(s *ast.ExpressionStatement) {
-	i.evaluate(s.Expr())
+	i.evaluate(s.Expr)
 }
 
 func (i *Interpreter) VisitIfStatement(s *ast.IfStatement) {
-	conditionResult := i.evaluate(s.Condition())
+	conditionResult := i.evaluate(s.Condition)
 	if isTruthy(conditionResult) {
-		i.execute(s.Consequence())
-	} else if s.Alternative() != nil {
-		i.execute(s.Alternative())
+		i.execute(s.Consequence)
+	} else if s.Alternative != nil {
+		i.execute(s.Alternative)
 	}
 }
 
@@ -131,10 +123,10 @@ func (i *Interpreter) VisitLoopStatement(s *ast.LoopStatement) {
 		}
 	}()
 
-	for isTruthy(i.evaluate(s.Condition())) {
+	for isTruthy(i.evaluate(s.Condition)) {
 		// this needs to be pushed to a function so that
 		// panic-defer works with continue statements
-		i.executeLoopBody(s.Body(), s.Increment())
+		i.executeLoopBody(s.Body, s.Increment)
 	}
 }
 
@@ -156,10 +148,10 @@ func (i *Interpreter) VisitForEachStatement(s *ast.ForEachStatement) {
 	}()
 
 	// retrieve the array, it must exists in the outer scope
-	a := i.evaluate(s.Array())
+	a := i.evaluate(s.Array)
 	array, ok := a.(LoxArray)
 	if !ok {
-		panic(lox_error.RuntimeError(s.VariableName(), "for-of loops are only valid on arrays"))
+		panic(lox_error.RuntimeError(s.VariableName, "for-of loops are only valid on arrays"))
 	}
 	if len(array) == 0 {
 		return
@@ -168,17 +160,17 @@ func (i *Interpreter) VisitForEachStatement(s *ast.ForEachStatement) {
 	// start a new scope and create the loop variable, initialized to first element of array
 	i.environment = NewEnclosingEnvironment(i.environment)
 	loop_position := 0
-	i.environment.define(s.VariableName().GetLexeme(), array[loop_position])
+	i.environment.define(s.VariableName.Lexeme, array[loop_position])
 
 	// loop through array
 	for {
 		// execute the loop
-		i.executeLoopBody(s.Body(), nil)
+		i.executeLoopBody(s.Body, nil)
 
 		// reassign loop variable to next element of array
 		loop_position += 1
 		if loop_position < len(array) {
-			i.environment.assign(s.VariableName(), array[loop_position])
+			i.environment.assign(s.VariableName, array[loop_position])
 		} else {
 			// exit loop, all done
 			break
@@ -220,22 +212,22 @@ func (i *Interpreter) executeLoopBody(body ast.Statement, increment ast.Expressi
 func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
 	var value any = nil
 
-	if s.Initializer() != nil {
-		value = i.evaluate(s.Initializer())
+	if s.Initializer != nil {
+		value = i.evaluate(s.Initializer)
 	}
 
-	i.environment.define(s.Name().GetLexeme(), value)
+	i.environment.define(s.Name.Lexeme, value)
 }
 
 func (i *Interpreter) VisitFunctionStatement(s *ast.FunctionStatement) {
-	function := NewLoxFunction(s, i.environment)
-	i.environment.define(s.Name().GetLexeme(), function)
+	function := &LoxFunction{s, i.environment}
+	i.environment.define(s.Name.Lexeme, function)
 }
 
 func (i *Interpreter) VisitReturnStatement(s *ast.ReturnStatement) {
 	var value any = nil
-	if s.Value() != nil {
-		value = i.evaluate(s.Value())
+	if s.Value != nil {
+		value = i.evaluate(s.Value)
 	}
 
 	// Using panic to wind back call stack
@@ -257,44 +249,44 @@ func (i *Interpreter) evaluate(e ast.Expression) any {
 }
 
 func (i *Interpreter) VisitTernaryExpression(e *ast.TernaryExpression) any {
-	condition := i.evaluate(e.Condition())
+	condition := i.evaluate(e.Condition)
 
 	if isTruthy(condition) {
-		return i.evaluate(e.Consequence())
+		return i.evaluate(e.Consequence)
 	} else {
-		return i.evaluate(e.Alternative())
+		return i.evaluate(e.Alternative)
 	}
 }
 
 func (i *Interpreter) VisitAssignmentExpression(e *ast.AssignmentExpression) any {
-	value := i.evaluate(e.Value())
+	value := i.evaluate(e.Value)
 
 	distance, ok := i.locals[e]
 	if ok {
-		i.environment.assignAt(distance, e.Name(), value)
+		i.environment.assignAt(distance, e.Name, value)
 	} else {
-		i.globals.assign(e.Name(), value)
+		i.globals.assign(e.Name, value)
 	}
 
 	return value
 }
 
 func (i *Interpreter) VisitVariableExpression(e *ast.VariableExpression) any {
-	return i.lookupVariable(e.Name(), e)
+	return i.lookupVariable(e.Name, e)
 }
 
 func (*Interpreter) VisitLiteralExpression(le *ast.LiteralExpression) any {
-	return le.Value()
+	return le.Value
 }
 
 func (i *Interpreter) VisitGroupedExpression(ge *ast.GroupingExpression) any {
-	return i.evaluate(ge.Expression())
+	return i.evaluate(ge.Expr)
 }
 
 func (i *Interpreter) VisitSequenceExpression(e *ast.SequenceExpression) any {
 	// evaluate all items but only return final one
 	var result any
-	for _, item := range e.Items() {
+	for _, item := range e.Items {
 		result = i.evaluate(item)
 	}
 
@@ -303,8 +295,8 @@ func (i *Interpreter) VisitSequenceExpression(e *ast.SequenceExpression) any {
 
 func (i *Interpreter) VisitArrayExpression(e *ast.ArrayExpression) any {
 	// represent arrays by slices of any
-	array := make(LoxArray, len(e.Items()))
-	for idx, item := range e.Items() {
+	array := make(LoxArray, len(e.Items))
+	for idx, item := range e.Items {
 		array[idx] = i.evaluate(item)
 	}
 
@@ -312,38 +304,38 @@ func (i *Interpreter) VisitArrayExpression(e *ast.ArrayExpression) any {
 }
 
 func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
-	m := make(LoxMap, len(e.Keys()))
-	for idx := range e.Keys() {
-		key, isString := i.evaluate(e.Keys()[idx]).(string)
+	m := make(LoxMap, len(e.Keys))
+	for idx := range e.Keys {
+		key, isString := i.evaluate(e.Keys[idx]).(string)
 		if !isString {
-			panic(lox_error.RuntimeError(e.OpeningBrace(), "map keys must be strings"))
+			panic(lox_error.RuntimeError(e.OpeningBrace, "map keys must be strings"))
 		}
 		hash := Hash(key)
-		value := i.evaluate(e.Values()[idx])
+		value := i.evaluate(e.Values[idx])
 
-		m[hash] = MapPair{key: key, value: value}
+		m[hash] = MapPair{Key: key, Value: value}
 	}
 
 	return m
 }
 
 func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
-	object := i.evaluate(e.Object())
-	leftIndex, leftIsNumber := i.evaluate(e.LeftIndex()).(float64)
+	object := i.evaluate(e.Object)
+	leftIndex, leftIsNumber := i.evaluate(e.LeftIndex).(float64)
 	var (
 		rightIndex    float64
 		rightIsNumber bool = false
 	)
-	if e.RightIndex() != nil {
-		rightIndex, rightIsNumber = i.evaluate(e.RightIndex()).(float64)
+	if e.RightIndex != nil {
+		rightIndex, rightIsNumber = i.evaluate(e.RightIndex).(float64)
 	}
 
 	if !leftIsNumber || !isInteger(leftIndex) {
-		panic(lox_error.RuntimeError(e.ClosingBracket(), "Index must be integer"))
+		panic(lox_error.RuntimeError(e.ClosingBracket, "Index must be integer"))
 	}
 
 	if rightIsNumber && (!rightIsNumber || !isInteger(rightIndex)) {
-		panic(lox_error.RuntimeError(e.ClosingBracket(), "Index must be integer"))
+		panic(lox_error.RuntimeError(e.ClosingBracket, "Index must be integer"))
 	}
 
 	switch val := object.(type) {
@@ -351,10 +343,10 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 		{
 			if leftIndex < 0 || int(leftIndex) >= len(val) ||
 				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
-				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range"))
+				panic(lox_error.RuntimeError(e.ClosingBracket, "Index is out of range"))
 			}
 			if rightIsNumber && (leftIndex > rightIndex) {
-				panic(lox_error.RuntimeError(e.ClosingBracket(), "Right index of slice must be greater or equal to left index"))
+				panic(lox_error.RuntimeError(e.ClosingBracket, "Right index of slice must be greater or equal to left index"))
 			}
 			if rightIsNumber {
 				return val[int(leftIndex):int(rightIndex)]
@@ -366,10 +358,10 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 		{
 			if leftIndex < 0 || int(leftIndex) >= len(val) ||
 				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
-				panic(lox_error.RuntimeError(e.ClosingBracket(), "Index is out of range"))
+				panic(lox_error.RuntimeError(e.ClosingBracket, "Index is out of range"))
 			}
 			if rightIsNumber && (leftIndex > rightIndex) {
-				panic(lox_error.RuntimeError(e.ClosingBracket(), "Right index of slice must be greater or equal to left index"))
+				panic(lox_error.RuntimeError(e.ClosingBracket, "Right index of slice must be greater or equal to left index"))
 			}
 			if rightIsNumber {
 				return val[int(leftIndex):int(rightIndex)]
@@ -378,84 +370,84 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 			}
 		}
 	default:
-		panic(lox_error.RuntimeError(e.ClosingBracket(), "Unreachable"))
+		panic(lox_error.RuntimeError(e.ClosingBracket, "Unreachable"))
 	}
 }
 
 func (i *Interpreter) mapIndexExpression(e *ast.IndexExpression) any {
-	object := i.evaluate(e.Object()).(LoxMap)
-	key, isString := i.evaluate(e.LeftIndex()).(string)
+	object := i.evaluate(e.Object).(LoxMap)
+	key, isString := i.evaluate(e.LeftIndex).(string)
 
-	if e.RightIndex() != nil {
-		panic(lox_error.RuntimeError(e.ClosingBracket(), "Cannot slice maps"))
+	if e.RightIndex != nil {
+		panic(lox_error.RuntimeError(e.ClosingBracket, "Cannot slice maps"))
 	}
 
 	if !isString {
-		panic(lox_error.RuntimeError(e.ClosingBracket(), "Maps can only be indexed with strings"))
+		panic(lox_error.RuntimeError(e.ClosingBracket, "Maps can only be indexed with strings"))
 	}
 
 	hash := Hash(key)
 
-	return object[hash].value
+	return object[hash].Value
 }
 
 func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
-	object := i.evaluate(e.Object())
+	object := i.evaluate(e.Object)
 	switch object.(type) {
 	case LoxArray, string:
 		return i.arrayIndexExpression(e)
 	case LoxMap:
 		return i.mapIndexExpression(e)
 	}
-	panic(lox_error.RuntimeError(e.ClosingBracket(), "Can only index arrays, strings and maps"))
+	panic(lox_error.RuntimeError(e.ClosingBracket, "Can only index arrays, strings and maps"))
 }
 
 func (i *Interpreter) arrayIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
-	array, _ := i.evaluate(e.Left().Object()).(LoxArray)
-	index, isNumber := i.evaluate(e.Left().LeftIndex()).(float64)
+	array, _ := i.evaluate(e.Left.Object).(LoxArray)
+	index, isNumber := i.evaluate(e.Left.LeftIndex).(float64)
 
 	// don't need to check for right index as using a slice for assignment is a parser error
 	if !isNumber || !isInteger(index) {
-		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Index must be integer"))
+		panic(lox_error.RuntimeError(e.Left.ClosingBracket, "Index must be integer"))
 	}
 	if index < 0 || int(index) >= len(array) {
-		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Index is out of range for array"))
+		panic(lox_error.RuntimeError(e.Left.ClosingBracket, "Index is out of range for array"))
 	}
 
-	value := i.evaluate(e.Value())
+	value := i.evaluate(e.Value)
 	array[int(index)] = value
 	return value
 }
 
 func (i *Interpreter) mapIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
-	m, _ := i.evaluate(e.Left().Object()).(LoxMap)
-	key, isString := i.evaluate(e.Left().LeftIndex()).(string)
+	m, _ := i.evaluate(e.Left.Object).(LoxMap)
+	key, isString := i.evaluate(e.Left.LeftIndex).(string)
 
 	if !isString {
-		panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "map keys must be strings"))
+		panic(lox_error.RuntimeError(e.Left.ClosingBracket, "map keys must be strings"))
 	}
 
 	hash := Hash(key)
-	value := i.evaluate(e.Value())
-	m[hash] = MapPair{key: key, value: value}
+	value := i.evaluate(e.Value)
+	m[hash] = MapPair{Key: key, Value: value}
 	return value
 }
 
 func (i *Interpreter) VisitIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
-	object := i.evaluate(e.Left().Object())
+	object := i.evaluate(e.Left.Object)
 	switch object.(type) {
 	case LoxArray:
 		return i.arrayIndexedAssignmentExpression(e)
 	case LoxMap:
 		return i.mapIndexedAssignmentExpression(e)
 	}
-	panic(lox_error.RuntimeError(e.Left().ClosingBracket(), "Can only assign to arrays and maps"))
+	panic(lox_error.RuntimeError(e.Left.ClosingBracket, "Can only assign to arrays and maps"))
 }
 
 func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) any {
-	left := i.evaluate(le.Left())
+	left := i.evaluate(le.Left)
 
-	if le.Operator().GetType() == token.OR {
+	if le.Operator.Type == token.OR {
 		if isTruthy(left) {
 			return left
 		}
@@ -465,14 +457,14 @@ func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) any {
 		}
 	}
 
-	return i.evaluate(le.Right())
+	return i.evaluate(le.Right)
 }
 
 func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) any {
-	right := i.evaluate(ue.Expression())
-	operator := ue.Operator()
+	right := i.evaluate(ue.Expr)
+	operator := ue.Operator
 
-	switch operator.GetType() {
+	switch operator.Type {
 	case token.BANG:
 		return !isTruthy(right)
 	case token.MINUS:
@@ -489,11 +481,11 @@ func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) any {
 }
 
 func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
-	left := i.evaluate(be.Left())
-	right := i.evaluate(be.Right())
-	operator := be.Operator()
+	left := i.evaluate(be.Left)
+	right := i.evaluate(be.Right)
+	operator := be.Operator
 
-	switch operator.GetType() {
+	switch operator.Type {
 	// can compare any type with == or != and don't need to type check
 	case token.EQUAL_EQUAL:
 		return left == right
@@ -534,11 +526,9 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 			if !lok || !rok {
 				panic(lox_error.RuntimeError(operator, "only valid for numbers"))
 			}
-			switch operator.GetType() {
+			switch operator.Type {
 			case token.MINUS:
 				return l - r
-			case token.PLUS:
-				return l + r
 			case token.SLASH:
 				return l / r
 			case token.STAR:
@@ -560,34 +550,34 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 }
 
 func (i *Interpreter) VisitLambdaExpression(e *ast.LambdaExpression) any {
-	return NewLoxFunction(e.Function(), i.environment)
+	return &LoxFunction{e.Function, i.environment}
 }
 
 func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
-	callee := i.evaluate(e.Callee())
+	callee := i.evaluate(e.Callee)
 	argValues := LoxArray{}
-	for _, argExpr := range e.Arguments() {
+	for _, argExpr := range e.Arguments {
 		argValues = append(argValues, i.evaluate(argExpr))
 	}
 
 	if function, ok := callee.(LoxCallable); ok {
 		if len(argValues) != function.Arity() {
-			panic(lox_error.RuntimeError(e.ClosingParen(), fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(argValues))))
+			panic(lox_error.RuntimeError(e.ClosingParen, fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(argValues))))
 		}
 		value, err := function.Call(i, argValues)
 		if err != nil {
-			panic(lox_error.RuntimeError(e.ClosingParen(), err.Error()))
+			panic(lox_error.RuntimeError(e.ClosingParen, err.Error()))
 		}
 
 		return value
 	}
-	panic(lox_error.RuntimeError(e.ClosingParen(), "Can only call functions and classes"))
+	panic(lox_error.RuntimeError(e.ClosingParen, "Can only call functions and classes"))
 }
 
 func (i *Interpreter) lookupVariable(name *token.Token, expression ast.Expression) any {
 	if distance, ok := i.locals[expression]; ok {
 		// safe to not check for error as the resolver should have done its job...
-		return i.environment.getAt(distance, name.GetLexeme())
+		return i.environment.getAt(distance, name.Lexeme)
 	} else {
 		val, err := i.globals.get(name)
 		if err == nil {
@@ -647,8 +637,14 @@ func Representation(v any) string {
 		}
 	case LoxMap:
 		return "<map>"
-	case LoxCallable:
-		return v.String()
+	case *LoxFunction:
+		if v.declaration.Name != nil {
+			return "<fn " + v.declaration.Name.Lexeme + ">"
+		} else {
+			return "<lambda>"
+		}
+	case LoxNative:
+		return "<native fn " + v.Name() + ">"
 	}
 
 	return "<object>"
@@ -658,7 +654,7 @@ func PrintRepresentation(v any) string {
 	switch v := v.(type) {
 	case string:
 		return fmt.Sprint(v)
-	case nil, bool, float64, LoxArray, LoxCallable:
+	case nil, bool, float64, LoxArray, LoxCallable, LoxMap:
 		return Representation(v)
 	}
 

@@ -3,7 +3,7 @@ package interpreter
 type LoxArray []any
 
 type MapPair struct {
-	key   string
-	value any
+	Key   string
+	Value any
 }
 type LoxMap map[int]MapPair

@@ -8,71 +8,78 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-type ClockNative struct{}
+type LoxNative interface {
+	LoxCallable
+	Name() string
+}
 
-func (ClockNative) Arity() int {
+var Natives = []LoxNative{
+	&Clock{},
+	&Print{},
+	&String{},
+	&Length{},
+	&Map{},
+	&Filter{},
+	&Reduce{},
+	&HasKey{},
+	&Size{},
+	&Values{},
+	&Keys{},
+}
+
+type Clock struct{}
+
+func (Clock) Arity() int {
 	return 0
 }
 
-func (ClockNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Clock) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	return float64(time.Now().UnixMilli() / 1000.0), nil
 }
 
-func (ClockNative) String() string {
-	return "<native fn clock>"
+func (Clock) Name() string {
+	return "clock"
 }
 
-func NewClockNative() LoxCallable {
-	return ClockNative{}
-}
+type Print struct{}
 
-type PrintNative struct{}
-
-func (PrintNative) Arity() int {
+func (Print) Arity() int {
 	return 1
 }
 
-func (PrintNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Print) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	fmt.Println(PrintRepresentation(arguments[0]))
 	return nil, nil
 }
 
-func (PrintNative) String() string {
-	return "<native fn print>"
+func (Print) Name() string {
+	return "print"
 }
 
-func NewPrintNative() LoxCallable {
-	return PrintNative{}
-}
+type String struct{}
 
-type StringNative struct{}
-
-func (StringNative) Arity() int {
+func (String) Arity() int {
 	return 1
 }
 
-func (StringNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (String) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	if s, ok := arguments[0].(string); ok {
 		return s, nil
 	}
 	return Representation(arguments[0]), nil
 }
 
-func (StringNative) String() string {
-	return "<native fn string>"
+func (String) Name() string {
+	return "string"
 }
 
-func NewStringNative() LoxCallable {
-	return StringNative{}
-}
+type Length struct{}
 
-type LengthNative struct{}
-
-func (LengthNative) Arity() int {
+func (Length) Arity() int {
 	return 1
 }
 
-func (LengthNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Length) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	switch val := arguments[0].(type) {
 	case LoxArray:
 		return float64(len(val)), nil
@@ -82,21 +89,17 @@ func (LengthNative) Call(interpreter *Interpreter, arguments []any) (any, error)
 	return nil, errors.New("can only call len on arrays or strings")
 }
 
-func (LengthNative) String() string {
-	return "<native fn len>"
+func (Length) Name() string {
+	return "len"
 }
 
-func NewLengthNative() LoxCallable {
-	return LengthNative{}
-}
+type Size struct{}
 
-type SizeNative struct{}
-
-func (SizeNative) Arity() int {
+func (Size) Arity() int {
 	return 1
 }
 
-func (SizeNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Size) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	switch val := arguments[0].(type) {
 	case LoxMap:
 		return float64(len(val)), nil
@@ -104,21 +107,17 @@ func (SizeNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	return nil, errors.New("can only call size on maps")
 }
 
-func (SizeNative) String() string {
-	return "<native fn size>"
+func (Size) Name() string {
+	return "size"
 }
 
-func NewSizeNative() LoxCallable {
-	return SizeNative{}
-}
+type Map struct{}
 
-type MapNative struct{}
-
-func (MapNative) Arity() int {
+func (Map) Arity() int {
 	return 2
 }
 
-func (MapNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Map) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	array, isArray := arguments[0].(LoxArray)
 	function, isFunction := arguments[1].(LoxCallable)
 
@@ -142,21 +141,17 @@ func (MapNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	return results, nil
 }
 
-func (MapNative) String() string {
-	return "<native fn map>"
+func (Map) Name() string {
+	return "map"
 }
 
-func NewMapNative() LoxCallable {
-	return MapNative{}
-}
+type Reduce struct{}
 
-type ReduceNative struct{}
-
-func (ReduceNative) Arity() int {
+func (Reduce) Arity() int {
 	return 3
 }
 
-func (ReduceNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Reduce) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	initializer := arguments[0]
 	array, isArray := arguments[1].(LoxArray)
 	function, isFunction := arguments[2].(LoxCallable)
@@ -181,21 +176,17 @@ func (ReduceNative) Call(interpreter *Interpreter, arguments []any) (any, error)
 	return accumulator, nil
 }
 
-func (ReduceNative) String() string {
-	return "<native fn reduce>"
+func (Reduce) Name() string {
+	return "reduce"
 }
 
-func NewReduceNative() LoxCallable {
-	return ReduceNative{}
-}
+type Filter struct{}
 
-type FilterNative struct{}
-
-func (FilterNative) Arity() int {
+func (Filter) Arity() int {
 	return 2
 }
 
-func (FilterNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Filter) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	array, isArray := arguments[0].(LoxArray)
 	function, isFunction := arguments[1].(LoxCallable)
 
@@ -221,21 +212,17 @@ func (FilterNative) Call(interpreter *Interpreter, arguments []any) (any, error)
 	return results, nil
 }
 
-func (FilterNative) String() string {
-	return "<native fn filter>"
+func (Filter) Name() string {
+	return "filter"
 }
 
-func NewFilterNative() LoxCallable {
-	return FilterNative{}
-}
+type HasKey struct{}
 
-type HasKeyNative struct{}
-
-func (HasKeyNative) Arity() int {
+func (HasKey) Arity() int {
 	return 2
 }
 
-func (HasKeyNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (HasKey) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	m, isMap := arguments[0].(LoxMap)
 	key, isString := arguments[1].(string)
 
@@ -253,21 +240,17 @@ func (HasKeyNative) Call(interpreter *Interpreter, arguments []any) (any, error)
 	return ok, nil
 }
 
-func (HasKeyNative) String() string {
-	return "<native fn hasKey>"
+func (HasKey) Name() string {
+	return "hasKey"
 }
 
-func NewHasKeyNative() LoxCallable {
-	return HasKeyNative{}
-}
+type Values struct{}
 
-type ValuesNative struct{}
-
-func (ValuesNative) Arity() int {
+func (Values) Arity() int {
 	return 1
 }
 
-func (ValuesNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Values) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	m, isMap := arguments[0].(LoxMap)
 
 	if !isMap {
@@ -277,27 +260,23 @@ func (ValuesNative) Call(interpreter *Interpreter, arguments []any) (any, error)
 	pairs := maps.Values(m)
 	values := make(LoxArray, len(pairs))
 	for i, pair := range pairs {
-		values[i] = pair.value
+		values[i] = pair.Value
 	}
 
 	return values, nil
 }
 
-func (ValuesNative) String() string {
-	return "<native fn values>"
+func (Values) Name() string {
+	return "values"
 }
 
-func NewValuesNative() LoxCallable {
-	return ValuesNative{}
-}
+type Keys struct{}
 
-type KeysNative struct{}
-
-func (KeysNative) Arity() int {
+func (Keys) Arity() int {
 	return 1
 }
 
-func (KeysNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
+func (Keys) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	m, isMap := arguments[0].(LoxMap)
 
 	if !isMap {
@@ -307,16 +286,12 @@ func (KeysNative) Call(interpreter *Interpreter, arguments []any) (any, error) {
 	pairs := maps.Values(m)
 	keys := make(LoxArray, len(pairs))
 	for i, pair := range pairs {
-		keys[i] = pair.key
+		keys[i] = pair.Key
 	}
 
 	return keys, nil
 }
 
-func (KeysNative) String() string {
-	return "<native fn keys>"
-}
-
-func NewKeysNative() LoxCallable {
-	return KeysNative{}
+func (Keys) Name() string {
+	return "keys"
 }

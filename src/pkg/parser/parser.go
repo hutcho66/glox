@@ -61,7 +61,7 @@ func (p *Parser) varDeclaration() ast.Statement {
 
 	p.endStatement()
 
-	return ast.NewVarStatement(name, initializer)
+	return &ast.VarStatement{Name: name, Initializer: initializer}
 }
 
 func (p *Parser) funDeclaration(kind string) ast.Statement {
@@ -82,14 +82,14 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 	p.consume(token.LEFT_BRACE, "Expect '{' before "+kind+" body")
 	body := p.block()
 
-	return ast.NewFunctionStatement(name, parameters, body)
+	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body}
 }
 
 func (p *Parser) statement() ast.Statement {
-	if p.match(token.NEW_LINE) {
-		// consume and retry
-		return p.statement()
-	}
+	// if p.match(token.NEW_LINE) {
+	// 	// consume and retry
+	// 	return p.statement()
+	// }
 
 	if p.match(token.RETURN) {
 		return p.returnStatement()
@@ -116,12 +116,12 @@ func (p *Parser) statement() ast.Statement {
 	}
 
 	if p.check(token.LEFT_BRACE) {
-		if p.checkAhead(token.RIGHT_BRACE, 1) || (p.checkAhead(token.STRING, 1) && !p.checkAhead(token.COLON, 2)) {
+		if p.checkAhead(token.RIGHT_BRACE, 1) || (p.checkAhead(token.STRING, 1) && p.checkAhead(token.COLON, 2)) {
 			// this looks like a map
 			return p.expressionStatement()
 		}
 		p.match(token.LEFT_BRACE)
-		return ast.NewBlockStatement(p.block())
+		return &ast.BlockStatement{Statements: p.block()}
 	}
 
 	return p.expressionStatement()
@@ -149,19 +149,19 @@ func (p *Parser) returnStatement() ast.Statement {
 	}
 
 	p.endStatement()
-	return ast.NewReturnStatement(keyword, value)
+	return &ast.ReturnStatement{Keyword: keyword, Value: value}
 }
 
 func (p *Parser) breakStatement() ast.Statement {
 	keyword := p.previous()
 	p.endStatement()
-	return ast.NewBreakStatement(keyword)
+	return &ast.BreakStatement{Keyword: keyword}
 }
 
 func (p *Parser) continueStatement() ast.Statement {
 	keyword := p.previous()
 	p.endStatement()
-	return ast.NewContinueStatement(keyword)
+	return &ast.ContinueStatement{Keyword: keyword}
 }
 
 func (p *Parser) ifStatement() ast.Statement {
@@ -175,7 +175,7 @@ func (p *Parser) ifStatement() ast.Statement {
 		alternative = p.statement()
 	}
 
-	return ast.NewIfStatement(condition, consequence, alternative)
+	return &ast.IfStatement{Condition: condition, Consequence: consequence, Alternative: alternative}
 }
 
 func (p *Parser) whileStatement() ast.Statement {
@@ -186,7 +186,7 @@ func (p *Parser) whileStatement() ast.Statement {
 	body := p.statement()
 
 	// while statements have no increment
-	return ast.NewLoopStatement(condition, body, nil)
+	return &ast.LoopStatement{Condition: condition, Body: body, Increment: nil}
 }
 
 func (p *Parser) forStatement() ast.Statement {
@@ -202,7 +202,7 @@ func (p *Parser) forStatement() ast.Statement {
 
 		body := p.statement()
 
-		return ast.NewForEachStatement(name, array, body)
+		return &ast.ForEachStatement{VariableName: name, Array: array, Body: body}
 	}
 
 	// else continue with c-style loop
@@ -231,17 +231,19 @@ func (p *Parser) forStatement() ast.Statement {
 
 	if condition == nil {
 		// if there is no condition, set it to 'true' to make infinite loop
-		condition = ast.NewLiteralExpression(true)
+		condition = &ast.LiteralExpression{Value: true}
 	}
 	// create LoopStatement using condition, body and increment
-	body = ast.NewLoopStatement(condition, body, increment)
+	body = &ast.LoopStatement{Condition: condition, Body: body, Increment: increment}
 
 	// if there is an initializer, add before loop statement
 	if initializer != nil {
-		body = ast.NewBlockStatement([]ast.Statement{
-			initializer,
-			body,
-		})
+		body = &ast.BlockStatement{
+			Statements: []ast.Statement{
+				initializer,
+				body,
+			},
+		}
 	}
 
 	return body
@@ -250,7 +252,7 @@ func (p *Parser) forStatement() ast.Statement {
 func (p *Parser) expressionStatement() ast.Statement {
 	expr := p.expression()
 	p.endStatement()
-	return ast.NewExpressionStatement(expr)
+	return &ast.ExpressionStatement{Expr: expr}
 }
 
 func (p *Parser) expression() ast.Expression {
@@ -304,12 +306,12 @@ func (p *Parser) lambda() ast.Expression {
 	var body []ast.Statement
 	if !p.check(token.LEFT_BRACE) || (p.checkAhead(token.STRING, 1) && p.checkAhead(token.COLON, 2)) {
 		// this is an expression return lambda
-		line := p.peek().GetLine()
+		line := p.peek().Line
 		expression := p.expression()
 		// add implicit return statement
-		token := token.NewToken(token.RETURN, "return", nil, line)
+		token := &token.Token{Type: token.RETURN, Lexeme: "return", Literal: nil, Line: line}
 		body = []ast.Statement{
-			ast.NewReturnStatement(token, expression),
+			&ast.ReturnStatement{Keyword: token, Value: expression},
 		}
 	} else {
 		// this is a block lambda
@@ -317,9 +319,9 @@ func (p *Parser) lambda() ast.Expression {
 		body = p.block()
 	}
 
-	function := ast.NewFunctionStatement(nil, parameters, body)
+	function := &ast.FunctionStatement{Name: nil, Params: parameters, Body: body}
 
-	return ast.NewLambdaExpression(operator, function)
+	return &ast.LambdaExpression{Operator: operator, Function: function}
 }
 
 func (p *Parser) ternary() ast.Expression {
@@ -331,7 +333,7 @@ func (p *Parser) ternary() ast.Expression {
 		p.consume(token.COLON, "Expect ':' after expression following '?'")
 		alternative := p.expression()
 
-		return ast.NewTernaryExpression(operator, condition, consequence, alternative)
+		return &ast.TernaryExpression{Condition: condition, Consequence: consequence, Alternative: alternative, Operator: operator}
 	}
 
 	return condition
@@ -347,14 +349,14 @@ func (p *Parser) assignment() ast.Expression {
 		switch e := expr.(type) {
 		case *ast.VariableExpression:
 			{
-				return ast.NewAssignmentExpression(e.Name(), value)
+				return &ast.AssignmentExpression{Name: e.Name, Value: value}
 			}
 		case *ast.IndexExpression:
 			{
-				if e.RightIndex() != nil {
+				if e.RightIndex != nil {
 					panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
 				}
-				return ast.NewIndexedAssignmentExpressionn(e, value)
+				return &ast.IndexedAssignmentExpression{Left: e, Value: value}
 			}
 		}
 
@@ -371,7 +373,7 @@ func (p *Parser) or() ast.Expression {
 		operator := p.previous()
 		right := p.and()
 
-		expr = ast.NewLogicalExpression(expr, operator, right)
+		expr = &ast.LogicalExpression{Left: expr, Right: right, Operator: operator}
 	}
 
 	return expr
@@ -384,7 +386,7 @@ func (p *Parser) and() ast.Expression {
 		operator := p.previous()
 		right := p.equality()
 
-		expr = ast.NewLogicalExpression(expr, operator, right)
+		expr = &ast.LogicalExpression{Left: expr, Right: right, Operator: operator}
 	}
 
 	return expr
@@ -397,7 +399,7 @@ func (p *Parser) equality() ast.Expression {
 		operator := p.previous()
 		right := p.comparison()
 
-		expr = ast.NewBinaryExpression(expr, operator, right)
+		expr = &ast.BinaryExpression{Left: expr, Right: right, Operator: operator}
 	}
 
 	return expr
@@ -410,7 +412,7 @@ func (p *Parser) comparison() ast.Expression {
 		operator := p.previous()
 		right := p.term()
 
-		expr = ast.NewBinaryExpression(expr, operator, right)
+		expr = &ast.BinaryExpression{Left: expr, Right: right, Operator: operator}
 	}
 
 	return expr
@@ -422,7 +424,7 @@ func (p *Parser) term() ast.Expression {
 	for p.match(token.MINUS, token.PLUS) {
 		operator := p.previous()
 		right := p.factor()
-		expr = ast.NewBinaryExpression(expr, operator, right)
+		expr = &ast.BinaryExpression{Left: expr, Right: right, Operator: operator}
 	}
 
 	return expr
@@ -434,7 +436,7 @@ func (p *Parser) factor() ast.Expression {
 	for p.match(token.SLASH, token.STAR) {
 		operator := p.previous()
 		right := p.unary()
-		expr = ast.NewBinaryExpression(expr, operator, right)
+		expr = &ast.BinaryExpression{Left: expr, Right: right, Operator: operator}
 	}
 
 	return expr
@@ -444,7 +446,7 @@ func (p *Parser) unary() ast.Expression {
 	if p.match(token.BANG, token.MINUS) {
 		operator := p.previous()
 		right := p.unary()
-		return ast.NewUnaryExpression(operator, right)
+		return &ast.UnaryExpression{Expr: right, Operator: operator}
 	}
 
 	return p.call_index()
@@ -468,43 +470,43 @@ func (p *Parser) call_index() ast.Expression {
 
 func (p *Parser) primary() ast.Expression {
 	if p.match(token.FALSE) {
-		return ast.NewLiteralExpression(false)
+		return &ast.LiteralExpression{Value: false}
 	}
 	if p.match(token.TRUE) {
-		return ast.NewLiteralExpression(true)
+		return &ast.LiteralExpression{Value: true}
 	}
 	if p.match(token.NIL) {
-		return ast.NewLiteralExpression(nil)
+		return &ast.LiteralExpression{Value: nil}
 	}
 	if p.match(token.NUMBER, token.STRING) {
-		return ast.NewLiteralExpression(p.previous().GetLiteral())
+		return &ast.LiteralExpression{Value: p.previous().Literal}
 	}
 	if p.match(token.IDENTIFIER) {
-		return ast.NewVariableExpression(p.previous())
+		return &ast.VariableExpression{Name: p.previous()}
 	}
 	if p.match(token.LEFT_PAREN) {
 		if p.match(token.RIGHT_PAREN) {
 			// empty sequence expression
-			return ast.NewSequenceExpression([]ast.Expression{})
+			return &ast.SequenceExpression{Items: []ast.Expression{}}
 		}
 		exprs := p.expressionList()
 		p.consume(token.RIGHT_PAREN, "Expect ')' after expression")
 
 		if len(exprs) == 1 {
-			return ast.NewGroupingExpression(exprs[0])
+			return &ast.GroupingExpression{Expr: exprs[0]}
 		} else {
-			return ast.NewSequenceExpression(exprs)
+			return &ast.SequenceExpression{Items: exprs}
 		}
 	}
 	if p.match(token.LEFT_BRACKET) {
 		if p.match(token.RIGHT_BRACKET) {
 			// empty array
-			return ast.NewArrayExpression([]ast.Expression{})
+			return &ast.ArrayExpression{Items: []ast.Expression{}}
 		}
 		exprs := p.expressionList()
 		p.consume(token.RIGHT_BRACKET, "Expect ']' after array literal")
 
-		return ast.NewArrayExpression(exprs)
+		return &ast.ArrayExpression{Items: exprs}
 	}
 	if p.match(token.LEFT_BRACE) {
 		openingBrace := p.previous()
@@ -513,7 +515,7 @@ func (p *Parser) primary() ast.Expression {
 
 		if p.match(token.RIGHT_BRACE) {
 			// empty array
-			return ast.NewMapExpression([]ast.Expression{}, []ast.Expression{}, openingBrace)
+			return &ast.MapExpression{OpeningBrace: openingBrace, Keys: []ast.Expression{}, Values: []ast.Expression{}}
 		}
 
 		keys := []ast.Expression{}
@@ -529,7 +531,7 @@ func (p *Parser) primary() ast.Expression {
 		}
 		p.consume(token.RIGHT_BRACE, "Expect '}' after map literal")
 
-		return ast.NewMapExpression(keys, values, openingBrace)
+		return &ast.MapExpression{OpeningBrace: openingBrace, Keys: keys, Values: values}
 	}
 
 	panic(lox_error.ParserError(p.peek(), "Expect expression."))
@@ -556,7 +558,7 @@ func (p *Parser) finishIndex(array ast.Expression) ast.Expression {
 	}
 	closingBracket := p.consume(token.RIGHT_BRACKET, "Expect ']' after index")
 
-	return ast.NewIndexExpression(array, leftIndex, rightIndex, closingBracket)
+	return &ast.IndexExpression{Object: array, LeftIndex: leftIndex, RightIndex: rightIndex, ClosingBracket: closingBracket}
 }
 
 func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
@@ -571,7 +573,7 @@ func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
 	}
 	closingParen := p.consume(token.RIGHT_PAREN, "Expect ')' after arguments")
 
-	return ast.NewCallExpression(callee, args, closingParen)
+	return &ast.CallExpression{Callee: callee, Arguments: args, ClosingParen: closingParen}
 }
 
 func (p *Parser) consume(tokenType token.TokenType, message string) *token.Token {
@@ -618,7 +620,7 @@ func (p *Parser) check(tokenType token.TokenType) bool {
 	if p.isAtEnd() {
 		return false
 	}
-	return p.peek().GetType() == tokenType
+	return p.peek().Type == tokenType
 }
 
 func (p *Parser) checkAhead(tokenType token.TokenType, lookahead int) bool {
@@ -626,7 +628,7 @@ func (p *Parser) checkAhead(tokenType token.TokenType, lookahead int) bool {
 	if position >= len(p.tokens) {
 		return false
 	}
-	return p.tokens[position].GetType() == tokenType
+	return p.tokens[position].Type == tokenType
 }
 
 func (p *Parser) advance() *token.Token {
@@ -637,7 +639,7 @@ func (p *Parser) advance() *token.Token {
 }
 
 func (p *Parser) isAtEnd() bool {
-	return p.peek().GetType() == token.EOF
+	return p.peek().Type == token.EOF
 }
 
 func (p *Parser) peek() *token.Token {
@@ -652,11 +654,11 @@ func (p *Parser) synchronize() {
 	p.advance()
 
 	for !p.isAtEnd() {
-		if p.previous().GetType() == token.SEMICOLON {
+		if p.previous().Type == token.SEMICOLON {
 			return
 		}
 
-		switch p.peek().GetType() {
+		switch p.peek().Type {
 		case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.RETURN:
 			return
 		}

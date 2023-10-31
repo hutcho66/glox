@@ -18,10 +18,10 @@ func ScannerError(line int, message string) {
 
 func ParserError(t *token.Token, message string) error {
 	hadParsingError = true
-	if t.GetType() == token.EOF {
-		Report(t.GetLine(), " at end", message)
+	if t.Type == token.EOF {
+		Report(t.Line, " at end", message)
 	} else {
-		Report(t.GetLine(), " at '"+t.GetLexeme()+"'", message)
+		Report(t.Line, " at '"+t.Lexeme+"'", message)
 	}
 
 	return errors.New("")
@@ -29,10 +29,10 @@ func ParserError(t *token.Token, message string) error {
 
 func ResolutionError(t *token.Token, message string) error {
 	hadResolutionError = true
-	if t.GetType() == token.EOF {
-		Report(t.GetLine(), " at end", message)
+	if t.Type == token.EOF {
+		Report(t.Line, " at end", message)
 	} else {
-		Report(t.GetLine(), " at '"+t.GetLexeme()+"'", message)
+		Report(t.Line, " at '"+t.Lexeme+"'", message)
 	}
 
 	return errors.New("")
@@ -40,7 +40,7 @@ func ResolutionError(t *token.Token, message string) error {
 
 func RuntimeError(t *token.Token, message string) error {
 	hadRuntimeError = true
-	Report(t.GetLine(), " at '"+t.GetLexeme()+"'", message)
+	Report(t.Line, " at '"+t.Lexeme+"'", message)
 	return errors.New("")
 }
 

@@ -31,7 +31,7 @@ func (s *Scanner) ScanTokens() []token.Token {
 		s.scanToken()
 	}
 
-	s.tokens = append(s.tokens, *token.NewToken(token.EOF, "", nil, s.line))
+	s.tokens = append(s.tokens, token.Token{Type: token.EOF, Lexeme: "", Literal: nil, Line: s.line})
 	return s.tokens
 }
 
@@ -156,8 +156,13 @@ func (s *Scanner) number() {
 		s.advance()
 	}
 
-	if s.peek() == '.' && isDigit(s.peekNext()) {
+	if s.peek() == '.' {
 		s.advance()
+
+		if s.isAtEnd() {
+			lox_error.ScannerError(s.line, "Unterminated number literal.")
+			return
+		}
 
 		for isDigit(s.peek()) {
 			s.advance()
@@ -197,13 +202,6 @@ func (s *Scanner) peek() byte {
 	return s.source[s.current]
 }
 
-func (s *Scanner) peekNext() byte {
-	if s.current+1 >= len(s.source) {
-		return '\x00'
-	}
-	return s.source[s.current+1]
-}
-
 func (s *Scanner) advance() byte {
 	ch := s.source[s.current]
 	s.current++
@@ -224,7 +222,7 @@ func (s *Scanner) addTokenConditional(expected byte, matchType, elseType token.T
 
 func (s *Scanner) addTokenWithLiteral(tokenType token.TokenType, literal any) {
 	lexeme := s.source[s.start:s.current]
-	s.tokens = append(s.tokens, *token.NewToken(tokenType, lexeme, literal, s.line))
+	s.tokens = append(s.tokens, token.Token{Type: tokenType, Lexeme: lexeme, Literal: literal, Line: s.line})
 }
 
 func isDigit(ch byte) bool {

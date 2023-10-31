@@ -25,15 +25,11 @@ func NewEnclosingEnvironment(enclosing *Environment) *Environment {
 }
 
 func (e *Environment) get(name *token.Token) (any, error) {
-	if val, ok := e.values[name.GetLexeme()]; ok {
+	if val, ok := e.values[name.Lexeme]; ok {
 		return val, nil
 	}
 
-	if e.enclosing != nil {
-		return e.enclosing.get(name)
-	}
-
-	return nil, lox_error.RuntimeError(name, "Undefined variable '"+name.GetLexeme()+"'")
+	return nil, lox_error.RuntimeError(name, "Undefined variable '"+name.Lexeme+"'")
 }
 
 func (e *Environment) getAt(distance int, name string) any {
@@ -54,19 +50,14 @@ func (e *Environment) define(name string, value any) {
 }
 
 func (e *Environment) assign(name *token.Token, value any) error {
-	if _, ok := e.values[name.GetLexeme()]; ok {
-		e.values[name.GetLexeme()] = value
+	if _, ok := e.values[name.Lexeme]; ok {
+		e.values[name.Lexeme] = value
 		return nil
 	}
 
-	if e.enclosing != nil {
-		e.enclosing.assign(name, value)
-		return nil
-	}
-
-	return lox_error.RuntimeError(name, "Undefined variable '"+name.GetLexeme()+"'")
+	return lox_error.RuntimeError(name, "Undefined variable '"+name.Lexeme+"'")
 }
 
 func (e *Environment) assignAt(distance int, name *token.Token, value any) {
-	e.ancestor(distance).values[name.GetLexeme()] = value
+	e.ancestor(distance).values[name.Lexeme] = value
 }
