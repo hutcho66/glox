@@ -14,11 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        persist-credentials: false
-        fetch-depth: 0
+    - uses: actions/checkout@v3
 
     - name: Set up Go
       uses: actions/setup-go@v4
@@ -26,32 +22,28 @@ jobs:
         go-version: '1.21.x'
 
     - name: Run Test
-      run: |
-        go test -v ./... -covermode=count -coverprofile=coverage.out
-        go tool cover -func=coverage.out -o=coverage.out
+      run: go test ./src/pkg/interpreter/interpreter_test.go -coverprofile=./cover.out -covermode=atomic -coverpkg=./src/pkg/...
 
-    - name: Go Coverage Badge  # Pass the `coverage.out` output to this action
-      uses: tj-actions/coverage-badge-go@v2
+    - name: check test coverage
+      uses: vladopajic/go-test-coverage@v2
       with:
-        filename: coverage.out
-    
-    - name: Verify Changed files
-      uses: tj-actions/verify-changed-files@v16
-      id: verify-changed-files
-      with:
-        files: README.md
+        # Configure action using config file (option 1)
+        config: ./.testcoverage.yml
+        
+        # Configure action by specifying input parameters individually (option 2)
+        profile: cover.out
+        local-prefix: github.com/hutcho66/glox/src/pkg
+        threshold-file: 0
+        threshold-package: 0
+        threshold-total: 80
 
-    - name: Commit changes
-      if: steps.verify-changed-files.outputs.files_changed == 'true'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add README.md
-        git commit -m "chore: Updated coverage badge."
-
-    - name: Push changes
-      if: steps.verify-changed-files.outputs.files_changed == 'true'
-      uses: ad-m/github-push-action@master
+    - name: make coverage badge
+      uses: action-badges/core@0.2.2
+      if: contains(github.ref, 'main')
       with:
-        github_token: ${{ github.token }}
-        branch: ${{ github.head_ref }}
+        label: coverage
+        message: ${{ steps.coverage.outputs.badge-text }}
+        message-color: ${{ steps.coverage.outputs.badge-color }}
+        file-name: coverage.svg
+        badge-branch: badges ## orphan branch where badge will be committed
+        github-token: "${{ secrets.GITHUB_TOKEN }}"

@@ -2,3 +2,4 @@
 bin
 script.lox
 coverage.*
+cover.out
