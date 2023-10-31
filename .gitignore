@@ -1,5 +1,5 @@
 .vscode
 bin
 script.lox
-coverage.*
 cover.out
+cover.html

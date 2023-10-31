@@ -368,32 +368,34 @@ Closures are fully supported in both named and lambda functions
 
 ## Usage
 
-### Build and run immediately
-
 ```bash
-# Run the REPL
-go run src/cmd/glox.go
+# Run the REPL, useful for rapid testing during development
+make run
 
-# Run a .lox source code file
-go run src/cmd/glox.go <path_to_script>
+# Build binary
+make build
+
+# Run a .lox source code file using the binary
+./glox <path_to_script>
 ```
 
-### Build and run from local directory
+### Tests
 
 ```bash
-# Create a binary in bin/
-go build -o bin/ src/cmd/glox.go
+# Run test suite
+make test
 
-# Run the binary
-./bin/glox
+# Run test suite and generate coverage HTML report
+make coverage
 ```
 
-### Build and install to GOPATH
+### Install to GOPATH
 
 ```bash
 # Build binary and store in GOPATH
-go install src/cmd/glox.go
+make install
 
 # Run from GOPATH (ensure GOPATH is set in $PATH)
 glox
+glox <path_to_script>
 ```
