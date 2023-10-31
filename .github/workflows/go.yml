@@ -34,12 +34,5 @@ jobs:
         threshold-package: 0
         threshold-total: 80
 
-    - name: make coverage badge
-      uses: action-badges/core@0.3.0
-      with:
-        label: coverage
-        message: ${{ steps.coverage.outputs.badge-text }}
-        message-color: ${{ steps.coverage.outputs.badge-color }}
-        file-name: coverage.svg
-        badge-branch: badges ## orphan branch where badge will be committed
-        github-token: "${{ secrets.GITHUB_TOKEN }}"
+        git-branch: badges
+        git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
