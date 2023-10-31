@@ -25,7 +25,6 @@ jobs:
       uses: ncruces/go-coverage-report@v0
       with:
         coverage-file: ./cover.out
-        output-dir: coverage
         report: true
         chart: true
         amend: true

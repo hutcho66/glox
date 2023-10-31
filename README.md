@@ -1,6 +1,7 @@
 # glox - A lox interpreter written in Go
 
-![coverage](https://raw.githubusercontent.com/hutcho66/glox/badges/.badges/main/coverage.svg)
+![Tests](https://github.com/hutcho66/glox/actions/workflows/go.yml/badge.svg)
+[![Go Coverage](https://github.com/hutcho66/glox/wiki/coverage.svg)](https://raw.githack.com/wiki/hutcho66/glox/coverage.html)
 
 The lox language was developed by Robert Nystrom for the book [Crafting Interpreters](https://craftinginterpreters.com/).
 

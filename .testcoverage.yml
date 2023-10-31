@@ -1,7 +1,0 @@
-profile: cover.out
-local-prefix: github.com/hutcho66/glox/src/pkg
-
-threshold:
-  file: 0
-  package: 0
-  total: 80
