@@ -128,6 +128,7 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 	parameters := []*token.Token{}
 	if !p.check(token.RIGHT_PAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
+			p.eatNewLines()
 			if len(parameters) >= 255 {
 				panic(p.errors.ParserError(p.peek(), "Can't have more than 255 parameters"))
 			}
@@ -348,10 +349,10 @@ func (p *Parser) lambda() ast.Expression {
 
 		if !p.check(token.RIGHT_PAREN) {
 			for ok := true; ok; ok = p.match(token.COMMA) {
+				p.eatNewLines()
 				if len(parameters) >= 255 {
 					panic(p.errors.ParserError(p.peek(), "Can't have more than 255 parameters"))
 				}
-
 				parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
 			}
 		}
@@ -635,6 +636,7 @@ func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
 	args := []ast.Expression{}
 	if !p.check(token.RIGHT_PAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
+			p.eatNewLines()
 			if len(args) >= 255 {
 				panic(p.errors.ParserError(p.peek(), "Can't have more than 255 arguments"))
 			}
@@ -695,9 +697,6 @@ func (p *Parser) check(tokenType token.TokenType) bool {
 
 func (p *Parser) checkAhead(tokenType token.TokenType, lookahead int) bool {
 	position := p.current + lookahead
-	if position >= len(p.tokens) {
-		return false
-	}
 	return p.tokens[position].Type == tokenType
 }
 

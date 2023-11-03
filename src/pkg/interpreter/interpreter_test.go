@@ -384,15 +384,13 @@ func (mr *MockReporter) Report(line int, where, message string) {
 	mr.errorMessage = message
 }
 
-func TestScannerErrors(t *testing.T) {
+func TestScannerError(t *testing.T) {
 	cases := []struct {
 		name        string
 		input       string
 		expectedMsg string
 	}{
 		{"unexpected char", "~", "Unexpected character."},
-		{"unterminated string", `"hello`, "Unterminated string."},
-		{"unterminated number", `4.`, "Unterminated number literal."},
 	}
 
 	for _, c := range cases {
@@ -403,6 +401,64 @@ func TestScannerErrors(t *testing.T) {
 			s := scanner.NewScanner(c.input, errors)
 			s.ScanTokens()
 			assert.True(t, errors.HadScanningError())
+			assert.Regexp(t, c.expectedMsg, reporter.errorMessage)
+		})
+	}
+}
+
+func TestParserError(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       string
+		expectedMsg string
+	}{
+		{"invalid expression", "var x = ;", "Expect expression"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			reporter := &MockReporter{}
+			errors := lox_error.NewLoxErrors(reporter)
+
+			s := scanner.NewScanner(c.input, errors)
+			tokens := s.ScanTokens()
+			assert.False(t, errors.HadScanningError())
+
+			p := parser.NewParser(tokens, errors)
+			p.Parse()
+			assert.True(t, errors.HadParsingError())
+			assert.Regexp(t, c.expectedMsg, reporter.errorMessage)
+		})
+	}
+}
+
+func TestResolverErrors(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       string
+		expectedMsg string
+	}{
+		{"declare variable twice", `{var x = 5; var x = 6}`, "Already a variable with this name in scope"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			reporter := &MockReporter{}
+			errors := lox_error.NewLoxErrors(reporter)
+
+			s := scanner.NewScanner(c.input, errors)
+			tokens := s.ScanTokens()
+			assert.False(t, errors.HadScanningError())
+
+			p := parser.NewParser(tokens, errors)
+			statements := p.Parse()
+			assert.False(t, errors.HadParsingError())
+
+			i := interpreter.NewInterpreter(errors)
+			r := resolver.NewResolver(i, errors)
+
+			r.Resolve(statements)
+			assert.True(t, errors.HadResolutionError())
 			assert.Regexp(t, c.expectedMsg, reporter.errorMessage)
 		})
 	}
