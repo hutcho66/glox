@@ -7,17 +7,28 @@ import (
 	"github.com/hutcho66/glox/src/pkg/token"
 )
 
-type FunctionType string
+type FunctionType int
+type ClassType int
 
 const (
-	NONE     FunctionType = "NONE"
-	FUNCTION              = "FUNCTION"
+	NOT_FUNCTION FunctionType = iota
+	FUNCTION
+	METHOD
+	INITIALIZER
+)
+
+const (
+	NOT_CLASS ClassType = iota
+	CLASS
+	SUBCLASS
 )
 
 type Resolver struct {
 	interpreter     *interpreter.Interpreter
 	scopes          []map[string]bool
 	currentFunction FunctionType
+	currentClass    ClassType
+	currentMethod   ast.MethodType
 	loop            bool
 }
 
@@ -25,7 +36,9 @@ func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
 	return &Resolver{
 		interpreter:     interpreter,
 		scopes:          []map[string]bool{},
-		currentFunction: NONE,
+		currentFunction: NOT_FUNCTION,
+		currentClass:    NOT_CLASS,
+		currentMethod:   ast.NOT_METHOD,
 		loop:            false,
 	}
 }
@@ -68,6 +81,11 @@ func (r *Resolver) resolveLocal(expression ast.Expression, name *token.Token) {
 }
 
 func (r *Resolver) resolveFunction(function *ast.FunctionStatement, functionType FunctionType) {
+
+	if function.Kind == ast.STATIC_METHOD && r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(function.Name, "Cannot declare function as static outside of class declaration."))
+	}
+
 	enclosingFunction := r.currentFunction
 	r.currentFunction = functionType
 
@@ -135,6 +153,52 @@ func (r *Resolver) VisitFunctionStatement(s *ast.FunctionStatement) {
 	r.resolveFunction(s, FUNCTION)
 }
 
+func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
+	enclosingClass := r.currentClass
+	r.currentClass = CLASS
+
+	r.declare(s.Name)
+	r.define(s.Name)
+
+	if s.Superclass != nil {
+		if s.Name.Lexeme == s.Superclass.Name.Lexeme {
+			panic(lox_error.ResolutionError(s.Superclass.Name, "A class can't inherit from itself."))
+		}
+
+		r.currentClass = SUBCLASS
+		r.resolveExpression(s.Superclass)
+	}
+
+	if s.Superclass != nil {
+		r.beginScope()
+		r.peekScope()["super"] = true
+	}
+
+	r.beginScope()
+
+	r.peekScope()["this"] = true
+	for _, method := range s.Methods {
+		if method.Name.Lexeme == "init" {
+			if method.Kind != ast.NORMAL_METHOD {
+				panic(lox_error.ResolutionError(s.Name, "init method cannot be static, getter or setter"))
+			}
+			r.resolveFunction(method, INITIALIZER)
+		} else {
+			r.currentMethod = method.Kind
+			r.resolveFunction(method, METHOD)
+			r.currentMethod = ast.NOT_METHOD
+		}
+	}
+
+	r.endScope()
+
+	if s.Superclass != nil {
+		r.endScope()
+	}
+
+	r.currentClass = enclosingClass
+}
+
 func (r *Resolver) VisitIfStatement(s *ast.IfStatement) {
 	r.resolveExpression(s.Condition)
 	r.resolveStatement(s.Consequence)
@@ -144,10 +208,16 @@ func (r *Resolver) VisitIfStatement(s *ast.IfStatement) {
 }
 
 func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
-	if r.currentFunction == NONE {
+	if r.currentFunction == NOT_FUNCTION {
 		lox_error.ResolutionError(s.Keyword, "Can't return from top level code")
 	}
 	if s.Value != nil {
+		if r.currentFunction == INITIALIZER {
+			lox_error.ResolutionError(s.Keyword, "Can't return a value from an initializer")
+		}
+		if r.currentMethod == ast.SETTER_METHOD {
+			lox_error.ResolutionError(s.Keyword, "Can't return a value from a setter")
+		}
 		r.resolveExpression(s.Value)
 	}
 }
@@ -232,6 +302,46 @@ func (r *Resolver) VisitIndexExpression(e *ast.IndexExpression) any {
 	if e.RightIndex != nil {
 		r.resolveExpression(e.RightIndex)
 	}
+	return nil
+}
+
+func (r *Resolver) VisitGetExpression(e *ast.GetExpression) any {
+	r.resolveExpression(e.Object)
+	return nil
+}
+
+func (r *Resolver) VisitSetExpression(e *ast.SetExpression) any {
+	r.resolveExpression(e.Value)
+	r.resolveExpression(e.Object)
+	return nil
+}
+
+func (r *Resolver) VisitThisExpression(e *ast.ThisExpression) any {
+	if r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'this' outside of a class."))
+	}
+	r.resolveLocal(e, e.Keyword)
+	return nil
+}
+
+func (r *Resolver) VisitSuperGetExpression(e *ast.SuperGetExpression) any {
+	if r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
+	} else if r.currentClass != SUBCLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
+	}
+	r.resolveLocal(e, e.Keyword)
+	return nil
+}
+
+func (r *Resolver) VisitSuperSetExpression(e *ast.SuperSetExpression) any {
+	if r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
+	} else if r.currentClass != SUBCLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
+	}
+	r.resolveLocal(e, e.Keyword)
+	r.resolveExpression(e.Value)
 	return nil
 }
 

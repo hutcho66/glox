@@ -19,6 +19,7 @@ type StatementVisitor interface {
 	VisitReturnStatement(*ReturnStatement)
 	VisitBreakStatement(*BreakStatement)
 	VisitContinueStatement(*ContinueStatement)
+	VisitClassStatement(*ClassStatement)
 }
 
 type ExpressionStatement struct {
@@ -75,10 +76,21 @@ func (s *ForEachStatement) Accept(v StatementVisitor) {
 	v.VisitForEachStatement(s)
 }
 
+type MethodType int
+
+const (
+	NOT_METHOD = iota
+	NORMAL_METHOD
+	STATIC_METHOD
+	GETTER_METHOD
+	SETTER_METHOD
+)
+
 type FunctionStatement struct {
 	Name   *token.Token
 	Params []*token.Token
 	Body   []Statement
+	Kind   MethodType
 }
 
 func (s *FunctionStatement) Accept(v StatementVisitor) {
@@ -108,4 +120,14 @@ type ContinueStatement struct {
 
 func (s *ContinueStatement) Accept(v StatementVisitor) {
 	v.VisitContinueStatement(s)
+}
+
+type ClassStatement struct {
+	Name       *token.Token
+	Methods    []*FunctionStatement
+	Superclass *VariableExpression
+}
+
+func (s *ClassStatement) Accept(v StatementVisitor) {
+	v.VisitClassStatement(s)
 }

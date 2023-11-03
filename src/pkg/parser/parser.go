@@ -43,6 +43,8 @@ func (p *Parser) declaration() (declaration ast.Statement) {
 
 	if p.match(token.VAR) {
 		return p.varDeclaration()
+	} else if p.match(token.CLASS) {
+		return p.classDeclaration()
 	} else if p.match(token.FUN) {
 		return p.funDeclaration("function")
 	} else {
@@ -64,7 +66,61 @@ func (p *Parser) varDeclaration() ast.Statement {
 	return &ast.VarStatement{Name: name, Initializer: initializer}
 }
 
+func (p *Parser) classDeclaration() ast.Statement {
+	name := p.consume(token.IDENTIFIER, "Expect class name.")
+
+	var super *ast.VariableExpression = nil
+	if p.match(token.LESS) {
+		p.consume(token.IDENTIFIER, "Expect superclass name.")
+		super = &ast.VariableExpression{Name: p.previous()}
+	}
+
+	p.consume(token.LEFT_BRACE, "Exepct '{' before class body.")
+
+	methods := []*ast.FunctionStatement{}
+	p.eatNewLines()
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		if p.match(token.GET) {
+			// this is a getter
+			name := p.consume(token.IDENTIFIER, "Expect getter name.")
+			p.consume(token.LEFT_BRACE, "Expect '{' after getter name")
+
+			body := p.block()
+			getter := &ast.FunctionStatement{Name: name, Params: []*token.Token{}, Body: body, Kind: ast.GETTER_METHOD}
+			methods = append(methods, getter)
+		} else if p.match(token.SET) {
+			name := p.consume(token.IDENTIFIER, "Expect setter name.")
+			p.consume(token.LEFT_PAREN, "Expect '(' after setter name.")
+			value := p.consume(token.IDENTIFIER, "Expect parameter name.")
+			p.consume(token.RIGHT_PAREN, "Expect ')' after setter parameter")
+
+			p.consume(token.LEFT_BRACE, "Expect '{' before setter body.")
+
+			body := p.block()
+
+			setter := &ast.FunctionStatement{Name: name, Params: []*token.Token{value}, Body: body, Kind: ast.SETTER_METHOD}
+			methods = append(methods, setter)
+		} else {
+			method := p.funDeclaration("method").(*ast.FunctionStatement)
+			methods = append(methods, method)
+		}
+
+		p.eatNewLines()
+	}
+
+	p.consume(token.RIGHT_BRACE, "Expect '}' after class body.")
+
+	return &ast.ClassStatement{Name: name, Methods: methods, Superclass: super}
+}
+
 func (p *Parser) funDeclaration(kind string) ast.Statement {
+	var methodKind ast.MethodType = ast.NOT_METHOD
+	if p.match(token.STATIC) {
+		methodKind = ast.STATIC_METHOD
+	} else if kind == "method" {
+		methodKind = ast.NORMAL_METHOD
+	}
+
 	name := p.consume(token.IDENTIFIER, "Expect "+kind+" name")
 	p.consume(token.LEFT_PAREN, "Expect '(' after "+kind+" name")
 	parameters := []*token.Token{}
@@ -82,7 +138,7 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 	p.consume(token.LEFT_BRACE, "Expect '{' before "+kind+" body")
 	body := p.block()
 
-	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body}
+	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body, Kind: methodKind}
 }
 
 func (p *Parser) statement() ast.Statement {
@@ -348,16 +404,16 @@ func (p *Parser) assignment() ast.Expression {
 
 		switch e := expr.(type) {
 		case *ast.VariableExpression:
-			{
-				return &ast.AssignmentExpression{Name: e.Name, Value: value}
-			}
+			return &ast.AssignmentExpression{Name: e.Name, Value: value}
+		case *ast.GetExpression:
+			return &ast.SetExpression{Object: e.Object, Name: e.Name, Value: value}
+		case *ast.SuperGetExpression:
+			return &ast.SuperSetExpression{Keyword: e.Keyword, Method: e.Method, Value: value}
 		case *ast.IndexExpression:
-			{
-				if e.RightIndex != nil {
-					panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
-				}
-				return &ast.IndexedAssignmentExpression{Left: e, Value: value}
+			if e.RightIndex != nil {
+				panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
 			}
+			return &ast.IndexedAssignmentExpression{Left: e, Value: value}
 		}
 
 		panic(lox_error.ParserError(equals, "Invalid assignment target"))
@@ -460,6 +516,9 @@ func (p *Parser) call_index() ast.Expression {
 			expr = p.finishCall(expr)
 		} else if p.match(token.LEFT_BRACKET) {
 			expr = p.finishIndex(expr)
+		} else if p.match(token.DOT) {
+			name := p.consume(token.IDENTIFIER, "Expect property name after '.'")
+			expr = &ast.GetExpression{Object: expr, Name: name}
 		} else {
 			break
 		}
@@ -483,6 +542,15 @@ func (p *Parser) primary() ast.Expression {
 	}
 	if p.match(token.IDENTIFIER) {
 		return &ast.VariableExpression{Name: p.previous()}
+	}
+	if p.match(token.THIS) {
+		return &ast.ThisExpression{Keyword: p.previous()}
+	}
+	if p.match(token.SUPER) {
+		keyword := p.previous()
+		p.consume(token.DOT, "Expect '.' after 'super'")
+		method := p.consume(token.IDENTIFIER, "Expect superclass method name.")
+		return &ast.SuperGetExpression{Keyword: keyword, Method: method}
 	}
 	if p.match(token.LEFT_PAREN) {
 		if p.match(token.RIGHT_PAREN) {

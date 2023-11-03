@@ -220,8 +220,42 @@ func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
 }
 
 func (i *Interpreter) VisitFunctionStatement(s *ast.FunctionStatement) {
-	function := &LoxFunction{s, i.environment}
+	function := &LoxFunction{declaration: s, closure: i.environment}
 	i.environment.define(s.Name.Lexeme, function)
+}
+
+func (i *Interpreter) VisitClassStatement(s *ast.ClassStatement) {
+	var superclass *LoxClass = nil
+	if s.Superclass != nil {
+		value := i.evaluate(s.Superclass)
+
+		var ok bool
+		superclass, ok = value.(*LoxClass)
+		if !ok {
+			panic(lox_error.RuntimeError(s.Superclass.Name, "Superclass must be a class."))
+		}
+	}
+
+	i.environment.define(s.Name.Lexeme, nil)
+
+	if superclass != nil {
+		i.environment = NewEnclosingEnvironment(i.environment)
+		i.environment.define("super", superclass)
+	}
+
+	methods := map[string]*LoxFunction{}
+	for _, method := range s.Methods {
+		function := &LoxFunction{method, i.environment, method.Name.Lexeme == "init"}
+		methods[method.Name.Lexeme] = function
+	}
+
+	class := &LoxClass{Name: s.Name.Lexeme, Methods: methods, Super: superclass}
+
+	if superclass != nil {
+		i.environment = i.environment.enclosing
+	}
+
+	i.environment.assign(s.Name, class)
 }
 
 func (i *Interpreter) VisitReturnStatement(s *ast.ReturnStatement) {
@@ -317,6 +351,111 @@ func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
 	}
 
 	return m
+}
+
+func (i *Interpreter) VisitGetExpression(e *ast.GetExpression) any {
+	object := i.evaluate(e.Object)
+	if instance, ok := object.(LoxObject); ok {
+		property := instance.get(e.Name)
+
+		// if field is a getter method, call it immediately
+		if method, ok := property.(*LoxFunction); ok {
+			if method.declaration.Kind == ast.GETTER_METHOD {
+				value, err := method.Call(i, []any{})
+				if err != nil {
+					panic(lox_error.RuntimeError(e.Name, err.Error()))
+				}
+
+				return value
+			}
+		}
+
+		// not a getter method, simple return the property
+		return property
+	}
+
+	panic(lox_error.RuntimeError(e.Name, "Only instances have properties."))
+}
+
+func (i *Interpreter) VisitSetExpression(e *ast.SetExpression) any {
+	object := i.evaluate(e.Object)
+	if instance, ok := object.(*LoxInstance); ok {
+		value := i.evaluate(e.Value)
+
+		// check if name refers to a setter
+		method := instance.Class.findMethod(e.Name.Lexeme)
+		if method != nil && method.declaration.Kind == ast.SETTER_METHOD {
+			// bind and call setter method with value
+			boundMethod := method.bind(instance)
+			_, err := boundMethod.Call(i, []any{value})
+			if err != nil {
+				panic(lox_error.RuntimeError(e.Name, err.Error()))
+			}
+
+		} else {
+			instance.set(e.Name, value)
+		}
+
+		return value
+	}
+
+	panic(lox_error.RuntimeError(e.Name, "Can only set fields on instances."))
+}
+
+func (i *Interpreter) VisitThisExpression(e *ast.ThisExpression) any {
+	return i.lookupVariable(e.Keyword, e)
+}
+
+func (i *Interpreter) VisitSuperGetExpression(e *ast.SuperGetExpression) any {
+	distance := i.locals[e]
+	superclass := i.environment.getAt(distance, "super")
+	sc := superclass.(*LoxClass)
+	object := i.environment.getAt(distance-1, "this").(LoxObject)
+	method := sc.findMethod(e.Method.Lexeme)
+
+	if method == nil {
+		panic(lox_error.RuntimeError(e.Method, "Undefined property '"+e.Method.Lexeme+"'."))
+	}
+
+	// if field is a getter method, call it immediately
+	if method.declaration.Kind == ast.GETTER_METHOD {
+		boundMethod := method.bind(object)
+		value, err := boundMethod.Call(i, []any{})
+		if err != nil {
+			panic(lox_error.RuntimeError(e.Keyword, err.Error()))
+		}
+
+		return value
+	}
+
+	return method.bind(object)
+}
+
+func (i *Interpreter) VisitSuperSetExpression(e *ast.SuperSetExpression) any {
+	distance := i.locals[e]
+	superclass := i.environment.getAt(distance, "super")
+	sc := superclass.(*LoxClass)
+	object := i.environment.getAt(distance-1, "this").(LoxObject)
+	method := sc.findMethod(e.Method.Lexeme)
+
+	if method == nil {
+		panic(lox_error.RuntimeError(e.Method, "Undefined setter '"+e.Method.Lexeme+"'."))
+	}
+
+	// the only case where it makes sense to use a super set expression
+	// is if the method is a setter
+	if method.declaration.Kind == ast.SETTER_METHOD {
+		value := i.evaluate(e.Value)
+		boundMethod := method.bind(object)
+		value, err := boundMethod.Call(i, []any{value})
+		if err != nil {
+			panic(lox_error.RuntimeError(e.Keyword, err.Error()))
+		}
+
+		return value
+	}
+
+	panic(lox_error.RuntimeError(e.Keyword, "Method is not a setter"))
 }
 
 func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
@@ -550,7 +689,7 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 }
 
 func (i *Interpreter) VisitLambdaExpression(e *ast.LambdaExpression) any {
-	return &LoxFunction{e.Function, i.environment}
+	return &LoxFunction{declaration: e.Function, closure: i.environment}
 }
 
 func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
@@ -643,6 +782,10 @@ func Representation(v any) string {
 		} else {
 			return "<lambda>"
 		}
+	case *LoxClass:
+		return "<class " + v.Name + ">"
+	case *LoxInstance:
+		return "<object " + v.Class.Name + ">"
 	case LoxNative:
 		return "<native fn " + v.Name() + ">"
 	}
