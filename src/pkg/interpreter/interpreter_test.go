@@ -194,7 +194,7 @@ world"`, "hello\nworld"},
 			test.value`,
 			"foo",
 		},
-		{"static methods", `
+		{"static method", `
 			class Test {
 				static hello() {
 					return "hello"
@@ -202,6 +202,26 @@ world"`, "hello\nworld"},
 			}
 			Test.hello()`,
 			"hello",
+		},
+		{"getter methods", `
+			class Test {
+				get hello {
+					return "hello"
+				}
+			}
+			Test().hello`,
+			"hello",
+		},
+		{"setter methods", `
+			class Test {
+				set name(value) {
+					this.greeting = "Hello, " + value
+				}
+			}
+			var test = Test()
+			test.name = "John"
+			test.greeting`,
+			"Hello, John",
 		},
 
 		// builtins

@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"github.com/hutcho66/glox/src/pkg/ast"
 	"github.com/hutcho66/glox/src/pkg/lox_error"
 	"github.com/hutcho66/glox/src/pkg/token"
 )
@@ -46,7 +47,7 @@ func (c *LoxClass) get(name *token.Token) any {
 		panic(lox_error.RuntimeError(name, "Undefined property '"+name.Lexeme+"'."))
 	}
 
-	if !method.declaration.IsStatic {
+	if method.declaration.Kind != ast.STATIC_METHOD {
 		panic(lox_error.RuntimeError(name, "Cannot call non-static method '"+name.Lexeme+"' directly on class."))
 	}
 

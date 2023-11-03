@@ -73,8 +73,32 @@ func (p *Parser) classDeclaration() ast.Statement {
 	methods := []*ast.FunctionStatement{}
 	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
 		p.eatNewLines()
-		method := p.funDeclaration("method").(*ast.FunctionStatement)
-		methods = append(methods, method)
+
+		if p.match(token.GET) {
+			// this is a getter
+			name := p.consume(token.IDENTIFIER, "Expect getter name.")
+			p.consume(token.LEFT_BRACE, "Expect '{' after getter name")
+
+			body := p.block()
+			getter := &ast.FunctionStatement{Name: name, Params: []*token.Token{}, Body: body, Kind: ast.GETTER_METHOD}
+			methods = append(methods, getter)
+		} else if p.match(token.SET) {
+			name := p.consume(token.IDENTIFIER, "Expect setter name.")
+			p.consume(token.LEFT_PAREN, "Expect '(' after setter name.")
+			value := p.consume(token.IDENTIFIER, "Expect parameter name.")
+			p.consume(token.RIGHT_PAREN, "Expect ')' after setter parameter")
+
+			p.consume(token.LEFT_BRACE, "Expect '{' before setter body.")
+
+			body := p.block()
+
+			setter := &ast.FunctionStatement{Name: name, Params: []*token.Token{value}, Body: body, Kind: ast.SETTER_METHOD}
+			methods = append(methods, setter)
+		} else {
+			method := p.funDeclaration("method").(*ast.FunctionStatement)
+			methods = append(methods, method)
+		}
+
 		p.eatNewLines()
 	}
 
@@ -84,7 +108,13 @@ func (p *Parser) classDeclaration() ast.Statement {
 }
 
 func (p *Parser) funDeclaration(kind string) ast.Statement {
-	isStatic := p.match(token.STATIC)
+	var methodKind ast.MethodType = ast.NOT_METHOD
+	if p.match(token.STATIC) {
+		methodKind = ast.STATIC_METHOD
+	} else if kind == "method" {
+		methodKind = ast.NORMAL_METHOD
+	}
+
 	name := p.consume(token.IDENTIFIER, "Expect "+kind+" name")
 	p.consume(token.LEFT_PAREN, "Expect '(' after "+kind+" name")
 	parameters := []*token.Token{}
@@ -102,7 +132,7 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 	p.consume(token.LEFT_BRACE, "Expect '{' before "+kind+" body")
 	body := p.block()
 
-	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body, IsStatic: isStatic}
+	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body, Kind: methodKind}
 }
 
 func (p *Parser) statement() ast.Statement {

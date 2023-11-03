@@ -27,6 +27,7 @@ type Resolver struct {
 	scopes          []map[string]bool
 	currentFunction FunctionType
 	currentClass    ClassType
+	currentMethod   ast.MethodType
 	loop            bool
 }
 
@@ -36,6 +37,7 @@ func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
 		scopes:          []map[string]bool{},
 		currentFunction: NOT_FUNCTION,
 		currentClass:    NOT_CLASS,
+		currentMethod:   ast.NOT_METHOD,
 		loop:            false,
 	}
 }
@@ -79,7 +81,7 @@ func (r *Resolver) resolveLocal(expression ast.Expression, name *token.Token) {
 
 func (r *Resolver) resolveFunction(function *ast.FunctionStatement, functionType FunctionType) {
 
-	if function.IsStatic && r.currentClass != CLASS {
+	if function.Kind == ast.STATIC_METHOD && r.currentClass != CLASS {
 		panic(lox_error.ResolutionError(function.Name, "Cannot declare function as static outside of class declaration."))
 	}
 
@@ -162,9 +164,14 @@ func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
 	r.peekScope()["this"] = true
 	for _, method := range s.Methods {
 		if method.Name.Lexeme == "init" {
+			if method.Kind != ast.NORMAL_METHOD {
+				panic(lox_error.ResolutionError(s.Name, "init method cannot be static, getter or setter"))
+			}
 			r.resolveFunction(method, INITIALIZER)
 		} else {
+			r.currentMethod = method.Kind
 			r.resolveFunction(method, METHOD)
+			r.currentMethod = ast.NOT_METHOD
 		}
 	}
 
@@ -188,6 +195,9 @@ func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
 	if s.Value != nil {
 		if r.currentFunction == INITIALIZER {
 			lox_error.ResolutionError(s.Keyword, "Can't return a value from an initializer")
+		}
+		if r.currentMethod == ast.SETTER_METHOD {
+			lox_error.ResolutionError(s.Keyword, "Can't return a value from a setter")
 		}
 		r.resolveExpression(s.Value)
 	}

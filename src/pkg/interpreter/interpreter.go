@@ -335,7 +335,22 @@ func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
 func (i *Interpreter) VisitGetExpression(e *ast.GetExpression) any {
 	object := i.evaluate(e.Object)
 	if instance, ok := object.(LoxObject); ok {
-		return instance.get(e.Name)
+		property := instance.get(e.Name)
+
+		// if field is a getter method, call it immediately
+		if method, ok := property.(*LoxFunction); ok {
+			if method.declaration.Kind == ast.GETTER_METHOD {
+				value, err := method.Call(i, []any{})
+				if err != nil {
+					panic(lox_error.RuntimeError(e.Name, err.Error()))
+				}
+
+				return value
+			}
+		}
+
+		// not a getter method, simple return the property
+		return property
 	}
 
 	panic(lox_error.RuntimeError(e.Name, "Only instances have properties."))
@@ -345,7 +360,21 @@ func (i *Interpreter) VisitSetExpression(e *ast.SetExpression) any {
 	object := i.evaluate(e.Object)
 	if instance, ok := object.(*LoxInstance); ok {
 		value := i.evaluate(e.Value)
-		instance.set(e.Name, value)
+
+		// check if name refers to a setter
+		method := instance.Class.findMethod(e.Name.Lexeme)
+		if method != nil && method.declaration.Kind == ast.SETTER_METHOD {
+			// bind and call setter method with value
+			boundMethod := method.bind(instance)
+			_, err := boundMethod.Call(i, []any{value})
+			if err != nil {
+				panic(lox_error.RuntimeError(e.Name, err.Error()))
+			}
+
+		} else {
+			instance.set(e.Name, value)
+		}
+
 		return value
 	}
 
