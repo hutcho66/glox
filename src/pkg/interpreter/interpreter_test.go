@@ -178,29 +178,35 @@ world"`, "hello\nworld"},
 	}
 
 	for _, c := range cases {
-		s := scanner.NewScanner(c.input)
-		tokens := s.ScanTokens()
+		t.Run(c.name, func(t *testing.T) {
+			errors := &lox_error.LoxErrors{}
 
-		p := parser.NewParser(tokens)
-		statements := p.Parse()
+			s := scanner.NewScanner(c.input, errors)
+			tokens := s.ScanTokens()
+			assert.False(t, errors.HadScanningError())
 
-		assert.False(t, lox_error.HadParsingError(), c.name)
+			p := parser.NewParser(tokens, errors)
+			statements := p.Parse()
+			assert.False(t, errors.HadParsingError())
 
-		i := interpreter.NewInterpreter()
-		r := resolver.NewResolver(i)
+			i := interpreter.NewInterpreter(errors)
+			r := resolver.NewResolver(i, errors)
 
-		r.Resolve(statements)
+			r.Resolve(statements)
+			assert.False(t, errors.HadResolutionError())
 
-		value, ok := i.Interpret(statements)
+			value, ok := i.Interpret(statements)
+			assert.False(t, errors.HadRuntimeError())
 
-		assert.True(t, ok, c.name)
+			assert.True(t, ok, c.name)
 
-		if _, ok := c.expected.(*interpreter.LoxFunction); ok {
-			// can't really compare functions so just pass if value is also a function
-			assert.IsType(t, c.expected, value, c.name)
-		} else {
-			assert.Equal(t, c.expected, value, c.name)
-		}
+			if _, ok := c.expected.(*interpreter.LoxFunction); ok {
+				// can't really compare functions so just pass if value is also a function
+				assert.IsType(t, c.expected, value, c.name)
+			} else {
+				assert.Equal(t, c.expected, value, c.name)
+			}
+		})
 	}
 }
 
@@ -216,30 +222,103 @@ func TestPrint(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		s := scanner.NewScanner(c.input)
-		tokens := s.ScanTokens()
+		t.Run(c.name, func(t *testing.T) {
+			errors := &lox_error.LoxErrors{}
 
-		p := parser.NewParser(tokens)
-		statements := p.Parse()
+			s := scanner.NewScanner(c.input, errors)
+			tokens := s.ScanTokens()
+			assert.False(t, errors.HadScanningError())
 
-		assert.False(t, lox_error.HadParsingError(), c.name)
+			p := parser.NewParser(tokens, errors)
+			statements := p.Parse()
+			assert.False(t, errors.HadParsingError())
 
-		i := interpreter.NewInterpreter()
-		r := resolver.NewResolver(i)
+			i := interpreter.NewInterpreter(errors)
+			r := resolver.NewResolver(i, errors)
 
-		r.Resolve(statements)
+			r.Resolve(statements)
+			assert.False(t, errors.HadResolutionError())
 
-		// redirect stdout
-		rescueStdout := os.Stdout
-		rp, wp, _ := os.Pipe()
-		os.Stdout = wp
+			// redirect stdout
+			rescueStdout := os.Stdout
+			rp, wp, _ := os.Pipe()
+			os.Stdout = wp
 
-		i.Interpret(statements)
+			i.Interpret(statements)
+			assert.False(t, errors.HadRuntimeError())
 
-		wp.Close()
-		out, _ := io.ReadAll(rp)
-		os.Stdout = rescueStdout
+			wp.Close()
+			out, _ := io.ReadAll(rp)
+			os.Stdout = rescueStdout
 
-		assert.Equal(t, c.expectedOutput, string(out), c.name)
+			assert.Equal(t, c.expectedOutput, string(out), c.name)
+		})
+	}
+}
+
+type MockReporter struct {
+	errorMessage string
+}
+
+func (mr *MockReporter) Report(line int, where, message string) {
+	mr.errorMessage = message
+}
+
+func TestScannerErrors(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       string
+		expectedMsg string
+	}{
+		{"unexpected char", "~", "Unexpected character."},
+		{"unterminated string", `"hello`, "Unterminated string."},
+		{"unterminated number", `4.`, "Unterminated number literal."},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			reporter := &MockReporter{}
+			errors := lox_error.NewLoxErrors(reporter)
+
+			s := scanner.NewScanner(c.input, errors)
+			s.ScanTokens()
+			assert.True(t, errors.HadScanningError())
+			assert.Regexp(t, c.expectedMsg, reporter.errorMessage)
+		})
+	}
+}
+
+func TestInterpreterErrors(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       string
+		expectedMsg string
+	}{
+		{"negate only works on numbers", `-true`, "Operand must be a number"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			reporter := &MockReporter{}
+			errors := lox_error.NewLoxErrors(reporter)
+
+			s := scanner.NewScanner(c.input, errors)
+			tokens := s.ScanTokens()
+			assert.False(t, errors.HadScanningError())
+
+			p := parser.NewParser(tokens, errors)
+			statements := p.Parse()
+			assert.False(t, errors.HadParsingError())
+
+			i := interpreter.NewInterpreter(errors)
+			r := resolver.NewResolver(i, errors)
+
+			r.Resolve(statements)
+			assert.False(t, errors.HadResolutionError())
+
+			i.Interpret(statements)
+			assert.True(t, errors.HadRuntimeError())
+			assert.Regexp(t, c.expectedMsg, reporter.errorMessage)
+		})
 	}
 }

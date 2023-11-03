@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -12,12 +13,13 @@ import (
 )
 
 type Interpreter struct {
+	errors      *lox_error.LoxErrors
 	globals     *Environment
 	environment *Environment
 	locals      map[ast.Expression]int
 }
 
-func NewInterpreter() *Interpreter {
+func NewInterpreter(errors *lox_error.LoxErrors) *Interpreter {
 	globals := NewEnvironment()
 
 	// add native functions
@@ -26,6 +28,7 @@ func NewInterpreter() *Interpreter {
 	}
 
 	return &Interpreter{
+		errors:      errors,
 		globals:     globals,
 		environment: globals,
 		locals:      make(map[ast.Expression]int),
@@ -151,7 +154,7 @@ func (i *Interpreter) VisitForEachStatement(s *ast.ForEachStatement) {
 	a := i.evaluate(s.Array)
 	array, ok := a.(LoxArray)
 	if !ok {
-		panic(lox_error.RuntimeError(s.VariableName, "for-of loops are only valid on arrays"))
+		panic(i.errors.RuntimeError(s.VariableName, "for-of loops are only valid on arrays"))
 	}
 	if len(array) == 0 {
 		return
@@ -308,7 +311,7 @@ func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
 	for idx := range e.Keys {
 		key, isString := i.evaluate(e.Keys[idx]).(string)
 		if !isString {
-			panic(lox_error.RuntimeError(e.OpeningBrace, "map keys must be strings"))
+			panic(i.errors.RuntimeError(e.OpeningBrace, "map keys must be strings"))
 		}
 		hash := Hash(key)
 		value := i.evaluate(e.Values[idx])
@@ -331,11 +334,11 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 	}
 
 	if !leftIsNumber || !isInteger(leftIndex) {
-		panic(lox_error.RuntimeError(e.ClosingBracket, "Index must be integer"))
+		panic(i.errors.RuntimeError(e.ClosingBracket, "Index must be integer"))
 	}
 
 	if rightIsNumber && (!rightIsNumber || !isInteger(rightIndex)) {
-		panic(lox_error.RuntimeError(e.ClosingBracket, "Index must be integer"))
+		panic(i.errors.RuntimeError(e.ClosingBracket, "Index must be integer"))
 	}
 
 	switch val := object.(type) {
@@ -343,10 +346,10 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 		{
 			if leftIndex < 0 || int(leftIndex) >= len(val) ||
 				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
-				panic(lox_error.RuntimeError(e.ClosingBracket, "Index is out of range"))
+				panic(i.errors.RuntimeError(e.ClosingBracket, "Index is out of range"))
 			}
 			if rightIsNumber && (leftIndex > rightIndex) {
-				panic(lox_error.RuntimeError(e.ClosingBracket, "Right index of slice must be greater or equal to left index"))
+				panic(i.errors.RuntimeError(e.ClosingBracket, "Right index of slice must be greater or equal to left index"))
 			}
 			if rightIsNumber {
 				return val[int(leftIndex):int(rightIndex)]
@@ -358,10 +361,10 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 		{
 			if leftIndex < 0 || int(leftIndex) >= len(val) ||
 				(rightIsNumber && (rightIndex < 0 || int(rightIndex) > len(val))) {
-				panic(lox_error.RuntimeError(e.ClosingBracket, "Index is out of range"))
+				panic(i.errors.RuntimeError(e.ClosingBracket, "Index is out of range"))
 			}
 			if rightIsNumber && (leftIndex > rightIndex) {
-				panic(lox_error.RuntimeError(e.ClosingBracket, "Right index of slice must be greater or equal to left index"))
+				panic(i.errors.RuntimeError(e.ClosingBracket, "Right index of slice must be greater or equal to left index"))
 			}
 			if rightIsNumber {
 				return val[int(leftIndex):int(rightIndex)]
@@ -370,7 +373,7 @@ func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
 			}
 		}
 	default:
-		panic(lox_error.RuntimeError(e.ClosingBracket, "Unreachable"))
+		panic(i.errors.RuntimeError(e.ClosingBracket, "Unreachable"))
 	}
 }
 
@@ -379,11 +382,11 @@ func (i *Interpreter) mapIndexExpression(e *ast.IndexExpression) any {
 	key, isString := i.evaluate(e.LeftIndex).(string)
 
 	if e.RightIndex != nil {
-		panic(lox_error.RuntimeError(e.ClosingBracket, "Cannot slice maps"))
+		panic(i.errors.RuntimeError(e.ClosingBracket, "Cannot slice maps"))
 	}
 
 	if !isString {
-		panic(lox_error.RuntimeError(e.ClosingBracket, "Maps can only be indexed with strings"))
+		panic(i.errors.RuntimeError(e.ClosingBracket, "Maps can only be indexed with strings"))
 	}
 
 	hash := Hash(key)
@@ -399,7 +402,7 @@ func (i *Interpreter) VisitIndexExpression(e *ast.IndexExpression) any {
 	case LoxMap:
 		return i.mapIndexExpression(e)
 	}
-	panic(lox_error.RuntimeError(e.ClosingBracket, "Can only index arrays, strings and maps"))
+	panic(i.errors.RuntimeError(e.ClosingBracket, "Can only index arrays, strings and maps"))
 }
 
 func (i *Interpreter) arrayIndexedAssignmentExpression(e *ast.IndexedAssignmentExpression) any {
@@ -408,10 +411,10 @@ func (i *Interpreter) arrayIndexedAssignmentExpression(e *ast.IndexedAssignmentE
 
 	// don't need to check for right index as using a slice for assignment is a parser error
 	if !isNumber || !isInteger(index) {
-		panic(lox_error.RuntimeError(e.Left.ClosingBracket, "Index must be integer"))
+		panic(i.errors.RuntimeError(e.Left.ClosingBracket, "Index must be integer"))
 	}
 	if index < 0 || int(index) >= len(array) {
-		panic(lox_error.RuntimeError(e.Left.ClosingBracket, "Index is out of range for array"))
+		panic(i.errors.RuntimeError(e.Left.ClosingBracket, "Index is out of range for array"))
 	}
 
 	value := i.evaluate(e.Value)
@@ -424,7 +427,7 @@ func (i *Interpreter) mapIndexedAssignmentExpression(e *ast.IndexedAssignmentExp
 	key, isString := i.evaluate(e.Left.LeftIndex).(string)
 
 	if !isString {
-		panic(lox_error.RuntimeError(e.Left.ClosingBracket, "map keys must be strings"))
+		panic(i.errors.RuntimeError(e.Left.ClosingBracket, "map keys must be strings"))
 	}
 
 	hash := Hash(key)
@@ -441,7 +444,7 @@ func (i *Interpreter) VisitIndexedAssignmentExpression(e *ast.IndexedAssignmentE
 	case LoxMap:
 		return i.mapIndexedAssignmentExpression(e)
 	}
-	panic(lox_error.RuntimeError(e.Left.ClosingBracket, "Can only assign to arrays and maps"))
+	panic(i.errors.RuntimeError(e.Left.ClosingBracket, "Can only assign to arrays and maps"))
 }
 
 func (i *Interpreter) VisitLogicalExpression(le *ast.LogicalExpression) any {
@@ -472,12 +475,12 @@ func (i *Interpreter) VisitUnaryExpression(ue *ast.UnaryExpression) any {
 			if r, ok := right.(float64); ok {
 				return -r
 			}
-			panic(lox_error.RuntimeError(operator, "Operand must be a number"))
+			panic(i.errors.RuntimeError(operator, "Operand must be a number"))
 		}
 	}
 
 	// Unreachable
-	panic(lox_error.RuntimeError(operator, "Unreachable"))
+	panic(i.errors.RuntimeError(operator, "Unreachable"))
 }
 
 func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
@@ -511,11 +514,19 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 			if leftIsString && rightIsString {
 				return leftStr + rightStr
 			} else if leftIsString {
-				return concatenate(operator, leftStr, right, false)
+				if s, err := concatenate(operator, leftStr, right, false); err == nil {
+					return s
+				} else {
+					panic(i.errors.RuntimeError(operator, err.Error()))
+				}
 			} else if rightIsString {
-				return concatenate(operator, rightStr, left, true)
+				if s, err := concatenate(operator, rightStr, left, true); err == nil {
+					return s
+				} else {
+					panic(i.errors.RuntimeError(operator, err.Error()))
+				}
 			} else {
-				panic(lox_error.RuntimeError(operator, "only valid for two numbers, two strings, two arrays, or one string and a number or boolean"))
+				panic(i.errors.RuntimeError(operator, "only valid for two numbers, two strings, two arrays, or one string and a number or boolean"))
 			}
 		}
 	// all other binary operations are only valid on numbers
@@ -524,7 +535,7 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 			l, lok := left.(float64)
 			r, rok := right.(float64)
 			if !lok || !rok {
-				panic(lox_error.RuntimeError(operator, "only valid for numbers"))
+				panic(i.errors.RuntimeError(operator, "only valid for numbers"))
 			}
 			switch operator.Type {
 			case token.MINUS:
@@ -546,7 +557,7 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 	}
 
 	// Unreachable
-	panic(lox_error.RuntimeError(operator, "Unreachable"))
+	panic(i.errors.RuntimeError(operator, "Unreachable"))
 }
 
 func (i *Interpreter) VisitLambdaExpression(e *ast.LambdaExpression) any {
@@ -562,16 +573,16 @@ func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
 
 	if function, ok := callee.(LoxCallable); ok {
 		if len(argValues) != function.Arity() {
-			panic(lox_error.RuntimeError(e.ClosingParen, fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(argValues))))
+			panic(i.errors.RuntimeError(e.ClosingParen, fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(argValues))))
 		}
 		value, err := function.Call(i, argValues)
 		if err != nil {
-			panic(lox_error.RuntimeError(e.ClosingParen, err.Error()))
+			panic(i.errors.RuntimeError(e.ClosingParen, err.Error()))
 		}
 
 		return value
 	}
-	panic(lox_error.RuntimeError(e.ClosingParen, "Can only call functions and classes"))
+	panic(i.errors.RuntimeError(e.ClosingParen, "Can only call functions and classes"))
 }
 
 func (i *Interpreter) lookupVariable(name *token.Token, expression ast.Expression) any {
@@ -579,28 +590,27 @@ func (i *Interpreter) lookupVariable(name *token.Token, expression ast.Expressio
 		// safe to not check for error as the resolver should have done its job...
 		return i.environment.getAt(distance, name.Lexeme)
 	} else {
-		val, err := i.globals.get(name)
-		if err == nil {
-			return val
-		} else {
-			panic(err)
+		val, ok := i.globals.get(name)
+		if !ok {
+			i.errors.RuntimeError(name, "Undefined variable '"+name.Lexeme+"'")
 		}
+		return val
 	}
 }
 
-func concatenate(operator *token.Token, stringValue string, otherValue any, reverse bool) string {
+func concatenate(operator *token.Token, stringValue string, otherValue any, reverse bool) (string, error) {
 	var other string
 	switch otherValue.(type) {
 	case float64, bool:
 		other = Representation(otherValue)
 	default:
-		panic(lox_error.RuntimeError(operator, fmt.Sprintf("cannot concatenate string with type %s", Representation(otherValue))))
+		return "", errors.New(fmt.Sprintf("cannot concatenate string with type %s", Representation(otherValue)))
 	}
 
 	if reverse {
-		return other + stringValue
+		return other + stringValue, nil
 	}
-	return stringValue + other
+	return stringValue + other, nil
 }
 
 func isInteger(value float64) bool {

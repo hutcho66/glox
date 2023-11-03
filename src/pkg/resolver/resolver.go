@@ -15,14 +15,16 @@ const (
 )
 
 type Resolver struct {
+	errors          *lox_error.LoxErrors
 	interpreter     *interpreter.Interpreter
 	scopes          []map[string]bool
 	currentFunction FunctionType
 	loop            bool
 }
 
-func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
+func NewResolver(interpreter *interpreter.Interpreter, errors *lox_error.LoxErrors) *Resolver {
 	return &Resolver{
+		errors:          errors,
 		interpreter:     interpreter,
 		scopes:          []map[string]bool{},
 		currentFunction: NONE,
@@ -103,7 +105,7 @@ func (r *Resolver) declare(name *token.Token) {
 	scope := r.peekScope()
 
 	if _, ok := scope[name.Lexeme]; ok {
-		panic(lox_error.ResolutionError(name, "Already a variable with this name in scope"))
+		panic(r.errors.ResolutionError(name, "Already a variable with this name in scope"))
 	}
 
 	scope[name.Lexeme] = false
@@ -145,7 +147,7 @@ func (r *Resolver) VisitIfStatement(s *ast.IfStatement) {
 
 func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
 	if r.currentFunction == NONE {
-		lox_error.ResolutionError(s.Keyword, "Can't return from top level code")
+		r.errors.ResolutionError(s.Keyword, "Can't return from top level code")
 	}
 	if s.Value != nil {
 		r.resolveExpression(s.Value)
@@ -154,13 +156,13 @@ func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
 
 func (r *Resolver) VisitBreakStatement(s *ast.BreakStatement) {
 	if r.loop == false {
-		lox_error.ResolutionError(s.Keyword, "Can't break when not in loop")
+		r.errors.ResolutionError(s.Keyword, "Can't break when not in loop")
 	}
 }
 
 func (r *Resolver) VisitContinueStatement(s *ast.ContinueStatement) {
 	if r.loop == false {
-		lox_error.ResolutionError(s.Keyword, "Can't continue when not in loop")
+		r.errors.ResolutionError(s.Keyword, "Can't continue when not in loop")
 	}
 }
 
@@ -292,7 +294,7 @@ func (r *Resolver) VisitVariableExpression(e *ast.VariableExpression) any {
 	if len(r.scopes) > 0 {
 		if val, ok := r.peekScope()[e.Name.Lexeme]; ok && val == false {
 			// visiting declared but not yet defined variable is an error
-			panic(lox_error.ResolutionError(e.Name, "Can't read local variable in its own initializer"))
+			panic(r.errors.ResolutionError(e.Name, "Can't read local variable in its own initializer"))
 		}
 	}
 

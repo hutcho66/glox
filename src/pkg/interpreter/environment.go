@@ -1,7 +1,6 @@
 package interpreter
 
 import (
-	"github.com/hutcho66/glox/src/pkg/lox_error"
 	"github.com/hutcho66/glox/src/pkg/token"
 )
 
@@ -24,12 +23,9 @@ func NewEnclosingEnvironment(enclosing *Environment) *Environment {
 	}
 }
 
-func (e *Environment) get(name *token.Token) (any, error) {
-	if val, ok := e.values[name.Lexeme]; ok {
-		return val, nil
-	}
-
-	return nil, lox_error.RuntimeError(name, "Undefined variable '"+name.Lexeme+"'")
+func (e *Environment) get(name *token.Token) (any, bool) {
+	val, ok := e.values[name.Lexeme]
+	return val, ok
 }
 
 func (e *Environment) getAt(distance int, name string) any {
@@ -49,13 +45,8 @@ func (e *Environment) define(name string, value any) {
 	e.values[name] = value
 }
 
-func (e *Environment) assign(name *token.Token, value any) error {
-	if _, ok := e.values[name.Lexeme]; ok {
-		e.values[name.Lexeme] = value
-		return nil
-	}
-
-	return lox_error.RuntimeError(name, "Undefined variable '"+name.Lexeme+"'")
+func (e *Environment) assign(name *token.Token, value any) {
+	e.values[name.Lexeme] = value
 }
 
 func (e *Environment) assignAt(distance int, name *token.Token, value any) {

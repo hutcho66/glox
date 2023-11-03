@@ -7,12 +7,14 @@ import (
 )
 
 type Parser struct {
+	errors  *lox_error.LoxErrors
 	tokens  []token.Token
 	current int
 }
 
-func NewParser(tokens []token.Token) *Parser {
+func NewParser(tokens []token.Token, errors *lox_error.LoxErrors) *Parser {
 	return &Parser{
+		errors:  errors,
 		tokens:  tokens,
 		current: 0,
 	}
@@ -71,7 +73,7 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 	if !p.check(token.RIGHT_PAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(parameters) >= 255 {
-				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+				panic(p.errors.ParserError(p.peek(), "Can't have more than 255 parameters"))
 			}
 
 			parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
@@ -291,7 +293,7 @@ func (p *Parser) lambda() ast.Expression {
 		if !p.check(token.RIGHT_PAREN) {
 			for ok := true; ok; ok = p.match(token.COMMA) {
 				if len(parameters) >= 255 {
-					panic(lox_error.ParserError(p.peek(), "Can't have more than 255 parameters"))
+					panic(p.errors.ParserError(p.peek(), "Can't have more than 255 parameters"))
 				}
 
 				parameters = append(parameters, p.consume(token.IDENTIFIER, "Expect parameter name"))
@@ -354,13 +356,13 @@ func (p *Parser) assignment() ast.Expression {
 		case *ast.IndexExpression:
 			{
 				if e.RightIndex != nil {
-					panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
+					panic(p.errors.ParserError(equals, "Cannot assign to array slice"))
 				}
 				return &ast.IndexedAssignmentExpression{Left: e, Value: value}
 			}
 		}
 
-		panic(lox_error.ParserError(equals, "Invalid assignment target"))
+		panic(p.errors.ParserError(equals, "Invalid assignment target"))
 	}
 
 	return expr
@@ -534,7 +536,7 @@ func (p *Parser) primary() ast.Expression {
 		return &ast.MapExpression{OpeningBrace: openingBrace, Keys: keys, Values: values}
 	}
 
-	panic(lox_error.ParserError(p.peek(), "Expect expression."))
+	panic(p.errors.ParserError(p.peek(), "Expect expression."))
 }
 
 func (p *Parser) expressionList() []ast.Expression {
@@ -566,7 +568,7 @@ func (p *Parser) finishCall(callee ast.Expression) ast.Expression {
 	if !p.check(token.RIGHT_PAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(args) >= 255 {
-				panic(lox_error.ParserError(p.peek(), "Can't have more than 255 arguments"))
+				panic(p.errors.ParserError(p.peek(), "Can't have more than 255 arguments"))
 			}
 			args = append(args, p.expression())
 		}
@@ -581,7 +583,7 @@ func (p *Parser) consume(tokenType token.TokenType, message string) *token.Token
 		return p.advance()
 	}
 
-	err := lox_error.ParserError(p.peek(), message)
+	err := p.errors.ParserError(p.peek(), message)
 	panic(err)
 }
 
@@ -594,7 +596,7 @@ func (p *Parser) endStatement() {
 
 	// Otherwise, must have at least one semicolon or newline to terminate a statement
 	if terminated := p.match(token.SEMICOLON, token.NEW_LINE); !terminated && !p.isAtEnd() {
-		panic(lox_error.ParserError(p.peek(), "Improperly terminated statement"))
+		panic(p.errors.ParserError(p.peek(), "Improperly terminated statement"))
 	}
 
 	// Consume as many extra newlines as possible
