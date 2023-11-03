@@ -13,21 +13,24 @@ import (
 )
 
 func RunFile(content string) {
-	ipr := interpreter.NewInterpreter()
-	run(string(content), ipr, false)
+	errors := &lox_error.LoxErrors{}
+	ipr := interpreter.NewInterpreter(errors)
+	run(string(content), ipr, errors, false)
 
 	// If there was an error when parsing, exit before interpreting
-	if lox_error.HadParsingError() {
+	if errors.HadParsingError() {
 		os.Exit(65)
 	}
-	if lox_error.HadRuntimeError() {
+	if errors.HadRuntimeError() {
 		os.Exit(70)
 	}
 }
 
 func RunPrompt() {
+	errors := &lox_error.LoxErrors{}
+
 	reader := bufio.NewReader(os.Stdin)
-	ipr := interpreter.NewInterpreter()
+	ipr := interpreter.NewInterpreter(errors)
 	fmt.Println("Welcome to the glox repl. Press CTRL-Z to exit.")
 
 	for {
@@ -36,30 +39,38 @@ func RunPrompt() {
 		if err != nil {
 			panic(err)
 		}
-		run(line, ipr, true)
-		lox_error.ResetError()
+		run(line, ipr, errors, true)
+		errors.ResetError()
 	}
 }
 
-func run(source string, ipr *interpreter.Interpreter, prompt bool) {
-	s := scanner.NewScanner(source)
+func run(source string, ipr *interpreter.Interpreter, errors *lox_error.LoxErrors, prompt bool) {
+	s := scanner.NewScanner(source, errors)
 	toks := s.ScanTokens()
 
-	p := parser.NewParser(toks)
-	statements := p.Parse()
-
-	if lox_error.HadParsingError() {
+	if errors.HadScanningError() {
 		return
 	}
 
-	r := resolver.NewResolver(ipr)
+	p := parser.NewParser(toks, errors)
+	statements := p.Parse()
+
+	if errors.HadParsingError() {
+		return
+	}
+
+	r := resolver.NewResolver(ipr, errors)
 	r.Resolve(statements)
 
-	if lox_error.HadResolutionError() {
+	if errors.HadResolutionError() {
 		return
 	}
 
 	last_expression_value, ok := ipr.Interpret(statements)
+
+	if errors.HadRuntimeError() {
+		return
+	}
 
 	if prompt && ok {
 		fmt.Println(interpreter.Representation(last_expression_value))

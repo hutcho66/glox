@@ -1,7 +1,8 @@
 package interpreter
 
 import (
-	"github.com/hutcho66/glox/src/pkg/lox_error"
+	"errors"
+
 	"github.com/hutcho66/glox/src/pkg/token"
 )
 
@@ -17,17 +18,17 @@ func NewLoxInstance(class *LoxClass) *LoxInstance {
 	}
 }
 
-func (i *LoxInstance) get(name *token.Token) any {
+func (i *LoxInstance) get(name *token.Token) (any, error) {
 	if field, ok := i.Fields[name.Lexeme]; ok {
-		return field
+		return field, nil
 	}
 
 	method := i.Class.findMethod(name.Lexeme)
 	if method != nil {
-		return method.bind(i)
+		return method.bind(i), nil
 	}
 
-	panic(lox_error.RuntimeError(name, "Undefined property '"+name.Lexeme+"'."))
+	return nil, errors.New("Undefined property '" + name.Lexeme + "'.")
 }
 
 func (i *LoxInstance) set(name *token.Token, value any) {

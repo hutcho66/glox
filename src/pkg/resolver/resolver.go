@@ -24,6 +24,7 @@ const (
 )
 
 type Resolver struct {
+	errors          *lox_error.LoxErrors
 	interpreter     *interpreter.Interpreter
 	scopes          []map[string]bool
 	currentFunction FunctionType
@@ -32,8 +33,9 @@ type Resolver struct {
 	loop            bool
 }
 
-func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
+func NewResolver(interpreter *interpreter.Interpreter, errors *lox_error.LoxErrors) *Resolver {
 	return &Resolver{
+		errors:          errors,
 		interpreter:     interpreter,
 		scopes:          []map[string]bool{},
 		currentFunction: NOT_FUNCTION,
@@ -83,7 +85,7 @@ func (r *Resolver) resolveLocal(expression ast.Expression, name *token.Token) {
 func (r *Resolver) resolveFunction(function *ast.FunctionStatement, functionType FunctionType) {
 
 	if function.Kind == ast.STATIC_METHOD && r.currentClass == NOT_CLASS {
-		panic(lox_error.ResolutionError(function.Name, "Cannot declare function as static outside of class declaration."))
+		panic(r.errors.ResolutionError(function.Name, "Cannot declare function as static outside of class declaration."))
 	}
 
 	enclosingFunction := r.currentFunction
@@ -121,7 +123,7 @@ func (r *Resolver) declare(name *token.Token) {
 	scope := r.peekScope()
 
 	if _, ok := scope[name.Lexeme]; ok {
-		panic(lox_error.ResolutionError(name, "Already a variable with this name in scope"))
+		panic(r.errors.ResolutionError(name, "Already a variable with this name in scope"))
 	}
 
 	scope[name.Lexeme] = false
@@ -162,7 +164,7 @@ func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
 
 	if s.Superclass != nil {
 		if s.Name.Lexeme == s.Superclass.Name.Lexeme {
-			panic(lox_error.ResolutionError(s.Superclass.Name, "A class can't inherit from itself."))
+			panic(r.errors.ResolutionError(s.Superclass.Name, "A class can't inherit from itself."))
 		}
 
 		r.currentClass = SUBCLASS
@@ -180,7 +182,7 @@ func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
 	for _, method := range s.Methods {
 		if method.Name.Lexeme == "init" {
 			if method.Kind != ast.NORMAL_METHOD {
-				panic(lox_error.ResolutionError(s.Name, "init method cannot be static, getter or setter"))
+				panic(r.errors.ResolutionError(s.Name, "init method cannot be static, getter or setter"))
 			}
 			r.resolveFunction(method, INITIALIZER)
 		} else {
@@ -209,14 +211,14 @@ func (r *Resolver) VisitIfStatement(s *ast.IfStatement) {
 
 func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
 	if r.currentFunction == NOT_FUNCTION {
-		lox_error.ResolutionError(s.Keyword, "Can't return from top level code")
+		panic(r.errors.ResolutionError(s.Keyword, "Can't return from top level code"))
 	}
 	if s.Value != nil {
 		if r.currentFunction == INITIALIZER {
-			lox_error.ResolutionError(s.Keyword, "Can't return a value from an initializer")
+			panic(r.errors.ResolutionError(s.Keyword, "Can't return a value from an initializer"))
 		}
 		if r.currentMethod == ast.SETTER_METHOD {
-			lox_error.ResolutionError(s.Keyword, "Can't return a value from a setter")
+			panic(r.errors.ResolutionError(s.Keyword, "Can't return a value from a setter"))
 		}
 		r.resolveExpression(s.Value)
 	}
@@ -224,13 +226,13 @@ func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
 
 func (r *Resolver) VisitBreakStatement(s *ast.BreakStatement) {
 	if r.loop == false {
-		lox_error.ResolutionError(s.Keyword, "Can't break when not in loop")
+		panic(r.errors.ResolutionError(s.Keyword, "Can't break when not in loop"))
 	}
 }
 
 func (r *Resolver) VisitContinueStatement(s *ast.ContinueStatement) {
 	if r.loop == false {
-		lox_error.ResolutionError(s.Keyword, "Can't continue when not in loop")
+		panic(r.errors.ResolutionError(s.Keyword, "Can't continue when not in loop"))
 	}
 }
 
@@ -318,7 +320,7 @@ func (r *Resolver) VisitSetExpression(e *ast.SetExpression) any {
 
 func (r *Resolver) VisitThisExpression(e *ast.ThisExpression) any {
 	if r.currentClass == NOT_CLASS {
-		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'this' outside of a class."))
+		panic(r.errors.ResolutionError(e.Keyword, "Can't use 'this' outside of a class."))
 	}
 	r.resolveLocal(e, e.Keyword)
 	return nil
@@ -326,9 +328,9 @@ func (r *Resolver) VisitThisExpression(e *ast.ThisExpression) any {
 
 func (r *Resolver) VisitSuperGetExpression(e *ast.SuperGetExpression) any {
 	if r.currentClass == NOT_CLASS {
-		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
+		panic(r.errors.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
 	} else if r.currentClass != SUBCLASS {
-		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
+		panic(r.errors.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
 	}
 	r.resolveLocal(e, e.Keyword)
 	return nil
@@ -336,9 +338,9 @@ func (r *Resolver) VisitSuperGetExpression(e *ast.SuperGetExpression) any {
 
 func (r *Resolver) VisitSuperSetExpression(e *ast.SuperSetExpression) any {
 	if r.currentClass == NOT_CLASS {
-		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
+		panic(r.errors.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
 	} else if r.currentClass != SUBCLASS {
-		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
+		panic(r.errors.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
 	}
 	r.resolveLocal(e, e.Keyword)
 	r.resolveExpression(e.Value)
@@ -402,7 +404,7 @@ func (r *Resolver) VisitVariableExpression(e *ast.VariableExpression) any {
 	if len(r.scopes) > 0 {
 		if val, ok := r.peekScope()[e.Name.Lexeme]; ok && val == false {
 			// visiting declared but not yet defined variable is an error
-			panic(lox_error.ResolutionError(e.Name, "Can't read local variable in its own initializer"))
+			panic(r.errors.ResolutionError(e.Name, "Can't read local variable in its own initializer"))
 		}
 	}
 

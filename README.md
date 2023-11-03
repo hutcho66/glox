@@ -16,6 +16,7 @@ This is a implementation of the language in go, with a few additions:
 - break and continue statements within loops
 - Lambda expressions using a JavaScript style arrow syntax
 - Additonal builtin functions, e.g. `len`, `map`, `filter`, `reduce`
+- Classes with static, getter and setter functions
 
 
 ## Table of Contents

@@ -8,6 +8,7 @@ import (
 )
 
 type Scanner struct {
+	errors               *lox_error.LoxErrors
 	source               string
 	tokens               []token.Token
 	start, current, line int
@@ -15,8 +16,9 @@ type Scanner struct {
 
 // Public methods
 
-func NewScanner(source string) *Scanner {
+func NewScanner(source string, errors *lox_error.LoxErrors) *Scanner {
 	return &Scanner{
+		errors:  errors,
 		source:  source,
 		tokens:  []token.Token{},
 		start:   0,
@@ -123,7 +125,7 @@ func (s *Scanner) scanToken() {
 			} else if isAlpha(c) {
 				s.identifier()
 			} else {
-				lox_error.ScannerError(s.line, "Unexpected character.")
+				s.errors.ScannerError(s.line, "Unexpected character.")
 			}
 		}
 	}
@@ -139,7 +141,7 @@ func (s *Scanner) string() {
 	}
 
 	if s.isAtEnd() {
-		lox_error.ScannerError(s.line, "Unterminated string.")
+		s.errors.ScannerError(s.line, "Unterminated string.")
 		return
 	}
 
@@ -160,7 +162,7 @@ func (s *Scanner) number() {
 		s.advance()
 
 		if s.isAtEnd() {
-			lox_error.ScannerError(s.line, "Unterminated number literal.")
+			s.errors.ScannerError(s.line, "Unterminated number literal.")
 			return
 		}
 
