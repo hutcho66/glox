@@ -7,17 +7,26 @@ import (
 	"github.com/hutcho66/glox/src/pkg/token"
 )
 
-type FunctionType string
+type FunctionType int
+type ClassType int
 
 const (
-	NONE     FunctionType = "NONE"
-	FUNCTION              = "FUNCTION"
+	NOT_FUNCTION FunctionType = iota
+	FUNCTION
+	METHOD
+	INITIALIZER
+)
+
+const (
+	NOT_CLASS ClassType = iota
+	CLASS
 )
 
 type Resolver struct {
 	interpreter     *interpreter.Interpreter
 	scopes          []map[string]bool
 	currentFunction FunctionType
+	currentClass    ClassType
 	loop            bool
 }
 
@@ -25,7 +34,8 @@ func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
 	return &Resolver{
 		interpreter:     interpreter,
 		scopes:          []map[string]bool{},
-		currentFunction: NONE,
+		currentFunction: NOT_FUNCTION,
+		currentClass:    NOT_CLASS,
 		loop:            false,
 	}
 }
@@ -135,6 +145,29 @@ func (r *Resolver) VisitFunctionStatement(s *ast.FunctionStatement) {
 	r.resolveFunction(s, FUNCTION)
 }
 
+func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
+	enclosingClass := r.currentClass
+	r.currentClass = CLASS
+
+	r.declare(s.Name)
+	r.define(s.Name)
+
+	r.beginScope()
+
+	r.peekScope()["this"] = true
+	for _, method := range s.Methods {
+		if method.Name.Lexeme == "init" {
+			r.resolveFunction(method, INITIALIZER)
+		} else {
+			r.resolveFunction(method, METHOD)
+		}
+	}
+
+	r.endScope()
+
+	r.currentClass = enclosingClass
+}
+
 func (r *Resolver) VisitIfStatement(s *ast.IfStatement) {
 	r.resolveExpression(s.Condition)
 	r.resolveStatement(s.Consequence)
@@ -144,10 +177,13 @@ func (r *Resolver) VisitIfStatement(s *ast.IfStatement) {
 }
 
 func (r *Resolver) VisitReturnStatement(s *ast.ReturnStatement) {
-	if r.currentFunction == NONE {
+	if r.currentFunction == NOT_FUNCTION {
 		lox_error.ResolutionError(s.Keyword, "Can't return from top level code")
 	}
 	if s.Value != nil {
+		if r.currentFunction == INITIALIZER {
+			lox_error.ResolutionError(s.Keyword, "Can't return a value from an initializer")
+		}
 		r.resolveExpression(s.Value)
 	}
 }
@@ -232,6 +268,25 @@ func (r *Resolver) VisitIndexExpression(e *ast.IndexExpression) any {
 	if e.RightIndex != nil {
 		r.resolveExpression(e.RightIndex)
 	}
+	return nil
+}
+
+func (r *Resolver) VisitGetExpression(e *ast.GetExpression) any {
+	r.resolveExpression(e.Object)
+	return nil
+}
+
+func (r *Resolver) VisitSetExpression(e *ast.SetExpression) any {
+	r.resolveExpression(e.Value)
+	r.resolveExpression(e.Object)
+	return nil
+}
+
+func (r *Resolver) VisitThisExpression(e *ast.ThisExpression) any {
+	if r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'this' outside of a class."))
+	}
+	r.resolveLocal(e, e.Keyword)
 	return nil
 }
 

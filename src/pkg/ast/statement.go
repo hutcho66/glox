@@ -19,6 +19,7 @@ type StatementVisitor interface {
 	VisitReturnStatement(*ReturnStatement)
 	VisitBreakStatement(*BreakStatement)
 	VisitContinueStatement(*ContinueStatement)
+	VisitClassStatement(*ClassStatement)
 }
 
 type ExpressionStatement struct {
@@ -108,4 +109,13 @@ type ContinueStatement struct {
 
 func (s *ContinueStatement) Accept(v StatementVisitor) {
 	v.VisitContinueStatement(s)
+}
+
+type ClassStatement struct {
+	Name    *token.Token
+	Methods []*FunctionStatement
+}
+
+func (s *ClassStatement) Accept(v StatementVisitor) {
+	v.VisitClassStatement(s)
 }

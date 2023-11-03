@@ -43,6 +43,8 @@ func (p *Parser) declaration() (declaration ast.Statement) {
 
 	if p.match(token.VAR) {
 		return p.varDeclaration()
+	} else if p.match(token.CLASS) {
+		return p.classDeclaration()
 	} else if p.match(token.FUN) {
 		return p.funDeclaration("function")
 	} else {
@@ -62,6 +64,23 @@ func (p *Parser) varDeclaration() ast.Statement {
 	p.endStatement()
 
 	return &ast.VarStatement{Name: name, Initializer: initializer}
+}
+
+func (p *Parser) classDeclaration() ast.Statement {
+	name := p.consume(token.IDENTIFIER, "Expect class name.")
+	p.consume(token.LEFT_BRACE, "Exepct '{' before class body.")
+
+	methods := []*ast.FunctionStatement{}
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		p.eatNewLines()
+		method := p.funDeclaration("method").(*ast.FunctionStatement)
+		methods = append(methods, method)
+		p.eatNewLines()
+	}
+
+	p.consume(token.RIGHT_BRACE, "Expect '}' after class body.")
+
+	return &ast.ClassStatement{Name: name, Methods: methods}
 }
 
 func (p *Parser) funDeclaration(kind string) ast.Statement {
@@ -348,16 +367,14 @@ func (p *Parser) assignment() ast.Expression {
 
 		switch e := expr.(type) {
 		case *ast.VariableExpression:
-			{
-				return &ast.AssignmentExpression{Name: e.Name, Value: value}
-			}
+			return &ast.AssignmentExpression{Name: e.Name, Value: value}
+		case *ast.GetExpression:
+			return &ast.SetExpression{Object: e.Object, Name: e.Name, Value: value}
 		case *ast.IndexExpression:
-			{
-				if e.RightIndex != nil {
-					panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
-				}
-				return &ast.IndexedAssignmentExpression{Left: e, Value: value}
+			if e.RightIndex != nil {
+				panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
 			}
+			return &ast.IndexedAssignmentExpression{Left: e, Value: value}
 		}
 
 		panic(lox_error.ParserError(equals, "Invalid assignment target"))
@@ -460,6 +477,9 @@ func (p *Parser) call_index() ast.Expression {
 			expr = p.finishCall(expr)
 		} else if p.match(token.LEFT_BRACKET) {
 			expr = p.finishIndex(expr)
+		} else if p.match(token.DOT) {
+			name := p.consume(token.IDENTIFIER, "Expect property name after '.'")
+			expr = &ast.GetExpression{Object: expr, Name: name}
 		} else {
 			break
 		}
@@ -483,6 +503,9 @@ func (p *Parser) primary() ast.Expression {
 	}
 	if p.match(token.IDENTIFIER) {
 		return &ast.VariableExpression{Name: p.previous()}
+	}
+	if p.match(token.THIS) {
+		return &ast.ThisExpression{Keyword: p.previous()}
 	}
 	if p.match(token.LEFT_PAREN) {
 		if p.match(token.RIGHT_PAREN) {

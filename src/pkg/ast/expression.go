@@ -24,6 +24,9 @@ type ExpressionVisitor interface {
 	VisitMapExpression(*MapExpression) any
 	VisitIndexExpression(*IndexExpression) any
 	VisitIndexedAssignmentExpression(*IndexedAssignmentExpression) any
+	VisitGetExpression(*GetExpression) any
+	VisitSetExpression(*SetExpression) any
+	VisitThisExpression(*ThisExpression) any
 }
 
 type BinaryExpression struct {
@@ -158,4 +161,30 @@ type IndexExpression struct {
 
 func (e *IndexExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitIndexExpression(e)
+}
+
+type GetExpression struct {
+	Object Expression
+	Name   *token.Token
+}
+
+func (e *GetExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitGetExpression(e)
+}
+
+type SetExpression struct {
+	Object, Value Expression
+	Name          *token.Token
+}
+
+func (e *SetExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitSetExpression(e)
+}
+
+type ThisExpression struct {
+	Keyword *token.Token
+}
+
+func (e *ThisExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitThisExpression(e)
 }

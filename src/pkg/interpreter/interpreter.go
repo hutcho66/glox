@@ -220,8 +220,21 @@ func (i *Interpreter) VisitVarStatement(s *ast.VarStatement) {
 }
 
 func (i *Interpreter) VisitFunctionStatement(s *ast.FunctionStatement) {
-	function := &LoxFunction{s, i.environment}
+	function := &LoxFunction{declaration: s, closure: i.environment}
 	i.environment.define(s.Name.Lexeme, function)
+}
+
+func (i *Interpreter) VisitClassStatement(s *ast.ClassStatement) {
+	i.environment.define(s.Name.Lexeme, nil)
+
+	methods := map[string]*LoxFunction{}
+	for _, method := range s.Methods {
+		function := &LoxFunction{method, i.environment, method.Name.Lexeme == "init"}
+		methods[method.Name.Lexeme] = function
+	}
+
+	class := &LoxClass{Name: s.Name.Lexeme, Methods: methods}
+	i.environment.assign(s.Name, class)
 }
 
 func (i *Interpreter) VisitReturnStatement(s *ast.ReturnStatement) {
@@ -317,6 +330,30 @@ func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
 	}
 
 	return m
+}
+
+func (i *Interpreter) VisitGetExpression(e *ast.GetExpression) any {
+	object := i.evaluate(e.Object)
+	if instance, ok := object.(*LoxInstance); ok {
+		return instance.get(e.Name)
+	}
+
+	panic(lox_error.RuntimeError(e.Name, "Only instances have properties."))
+}
+
+func (i *Interpreter) VisitSetExpression(e *ast.SetExpression) any {
+	object := i.evaluate(e.Object)
+	if instance, ok := object.(*LoxInstance); ok {
+		value := i.evaluate(e.Value)
+		instance.set(e.Name, value)
+		return value
+	}
+
+	panic(lox_error.RuntimeError(e.Name, "Only instances have fields."))
+}
+
+func (i *Interpreter) VisitThisExpression(e *ast.ThisExpression) any {
+	return i.lookupVariable(e.Keyword, e)
 }
 
 func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {
@@ -550,7 +587,7 @@ func (i *Interpreter) VisitBinaryExpression(be *ast.BinaryExpression) any {
 }
 
 func (i *Interpreter) VisitLambdaExpression(e *ast.LambdaExpression) any {
-	return &LoxFunction{e.Function, i.environment}
+	return &LoxFunction{declaration: e.Function, closure: i.environment}
 }
 
 func (i *Interpreter) VisitCallExpression(e *ast.CallExpression) any {
@@ -643,6 +680,10 @@ func Representation(v any) string {
 		} else {
 			return "<lambda>"
 		}
+	case *LoxClass:
+		return "<class " + v.Name + ">"
+	case *LoxInstance:
+		return "<object " + v.Class.Name + ">"
 	case LoxNative:
 		return "<native fn " + v.Name() + ">"
 	}

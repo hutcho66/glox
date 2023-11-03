@@ -10,8 +10,9 @@ type LoxCallable interface {
 }
 
 type LoxFunction struct {
-	declaration *ast.FunctionStatement
-	closure     *Environment
+	declaration   *ast.FunctionStatement
+	closure       *Environment
+	isInitializer bool
 }
 
 func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnValue any, err error) {
@@ -26,7 +27,12 @@ func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnVal
 				panic(val)
 			}
 
-			returnValue = rv.value
+			if f.isInitializer {
+				returnValue = f.closure.getAt(0, "this")
+			} else {
+				returnValue = rv.value
+			}
+
 			interpreter.environment = enclosingEnvironment
 			return
 		}
@@ -38,10 +44,19 @@ func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (returnVal
 
 	interpreter.executeBlock(f.declaration.Body, environment)
 
-	// if we've reached here, there was no return statement, so implicitly return nil
+	if f.isInitializer {
+		return f.closure.getAt(0, "this"), nil
+	}
+
 	return nil, nil
 }
 
 func (f LoxFunction) Arity() int {
 	return len(f.declaration.Params)
+}
+
+func (f *LoxFunction) bind(instance *LoxInstance) *LoxFunction {
+	environment := NewEnclosingEnvironment(f.closure)
+	environment.define("this", instance)
+	return &LoxFunction{f.declaration, environment, f.isInitializer}
 }

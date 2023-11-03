@@ -154,6 +154,47 @@ world"`, "hello\nworld"},
 		{"return", "fun x(a,b) { return a+b }\n x(3,5)", 8.0},
 		{"lambda implicit return", "var x = (a,b) => a+b; x(3,5)", 8.0},
 
+		// classes
+		{"class properties", `
+			class Test {}
+			var test = Test()
+			test.property = "foo"
+			test.property
+			`, "foo",
+		},
+		{"class methods", `
+			class Test {
+				method() {
+					return "foo"
+				}
+			}
+			var test = Test()
+			test.method()`,
+			"foo",
+		},
+		{"class initializer", `
+			class Test {
+				init(value) {
+					this.value = value
+				}
+			}
+			var test = Test("foo")
+			test.init("bar")
+			test.value`,
+			"bar",
+		},
+		{"class initializer - early return", `
+			class Test {
+				init(value) {
+					this.value = value
+					return
+				}
+			}
+			var test = Test("foo")
+			test.value`,
+			"foo",
+		},
+
 		// builtins
 		{"clock", "clock()", float64(time.Now().UnixMilli() / 1000.0)},
 
@@ -175,6 +216,14 @@ world"`, "hello\nworld"},
 		{"string - lambda", "string(() => {})", "<lambda>"},
 		{"string - named function", "fun a() {}\n string(a)", "<fn a>"},
 		{"string - builtin", "string(clock)", "<native fn clock>"},
+		{"string - class", `
+			class Foo {}
+			string(Foo)
+		`, "<class Foo>"},
+		{"string - instance", `
+			class Foo {}
+			string(Foo())
+		`, "<object Foo>"},
 	}
 
 	for _, c := range cases {
