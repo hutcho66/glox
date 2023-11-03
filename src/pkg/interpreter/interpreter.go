@@ -334,7 +334,7 @@ func (i *Interpreter) VisitMapExpression(e *ast.MapExpression) any {
 
 func (i *Interpreter) VisitGetExpression(e *ast.GetExpression) any {
 	object := i.evaluate(e.Object)
-	if instance, ok := object.(*LoxInstance); ok {
+	if instance, ok := object.(LoxObject); ok {
 		return instance.get(e.Name)
 	}
 
@@ -349,7 +349,7 @@ func (i *Interpreter) VisitSetExpression(e *ast.SetExpression) any {
 		return value
 	}
 
-	panic(lox_error.RuntimeError(e.Name, "Only instances have fields."))
+	panic(lox_error.RuntimeError(e.Name, "Can only set fields on instances."))
 }
 
 func (i *Interpreter) VisitThisExpression(e *ast.ThisExpression) any {

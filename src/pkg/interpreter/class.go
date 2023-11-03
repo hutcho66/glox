@@ -1,5 +1,10 @@
 package interpreter
 
+import (
+	"github.com/hutcho66/glox/src/pkg/lox_error"
+	"github.com/hutcho66/glox/src/pkg/token"
+)
+
 type LoxClass struct {
 	Name    string
 	Methods map[string]*LoxFunction
@@ -31,4 +36,20 @@ func (c *LoxClass) findMethod(name string) *LoxFunction {
 	}
 
 	return nil
+}
+
+func (c *LoxClass) get(name *token.Token) any {
+
+	method := c.findMethod(name.Lexeme)
+
+	if method == nil {
+		panic(lox_error.RuntimeError(name, "Undefined property '"+name.Lexeme+"'."))
+	}
+
+	if !method.declaration.IsStatic {
+		panic(lox_error.RuntimeError(name, "Cannot call non-static method '"+name.Lexeme+"' directly on class."))
+	}
+
+	return method.bind(c)
+
 }

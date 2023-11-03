@@ -194,6 +194,15 @@ world"`, "hello\nworld"},
 			test.value`,
 			"foo",
 		},
+		{"static methods", `
+			class Test {
+				static hello() {
+					return "hello"
+				}
+			}
+			Test.hello()`,
+			"hello",
+		},
 
 		// builtins
 		{"clock", "clock()", float64(time.Now().UnixMilli() / 1000.0)},

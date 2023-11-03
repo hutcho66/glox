@@ -77,9 +77,10 @@ func (s *ForEachStatement) Accept(v StatementVisitor) {
 }
 
 type FunctionStatement struct {
-	Name   *token.Token
-	Params []*token.Token
-	Body   []Statement
+	Name     *token.Token
+	Params   []*token.Token
+	Body     []Statement
+	IsStatic bool
 }
 
 func (s *FunctionStatement) Accept(v StatementVisitor) {

@@ -78,6 +78,11 @@ func (r *Resolver) resolveLocal(expression ast.Expression, name *token.Token) {
 }
 
 func (r *Resolver) resolveFunction(function *ast.FunctionStatement, functionType FunctionType) {
+
+	if function.IsStatic && r.currentClass != CLASS {
+		panic(lox_error.ResolutionError(function.Name, "Cannot declare function as static outside of class declaration."))
+	}
+
 	enclosingFunction := r.currentFunction
 	r.currentFunction = functionType
 

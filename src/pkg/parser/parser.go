@@ -84,6 +84,7 @@ func (p *Parser) classDeclaration() ast.Statement {
 }
 
 func (p *Parser) funDeclaration(kind string) ast.Statement {
+	isStatic := p.match(token.STATIC)
 	name := p.consume(token.IDENTIFIER, "Expect "+kind+" name")
 	p.consume(token.LEFT_PAREN, "Expect '(' after "+kind+" name")
 	parameters := []*token.Token{}
@@ -101,7 +102,7 @@ func (p *Parser) funDeclaration(kind string) ast.Statement {
 	p.consume(token.LEFT_BRACE, "Expect '{' before "+kind+" body")
 	body := p.block()
 
-	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body}
+	return &ast.FunctionStatement{Name: name, Params: parameters, Body: body, IsStatic: isStatic}
 }
 
 func (p *Parser) statement() ast.Statement {
