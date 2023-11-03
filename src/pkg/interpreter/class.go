@@ -9,6 +9,7 @@ import (
 type LoxClass struct {
 	Name    string
 	Methods map[string]*LoxFunction
+	Super   *LoxClass
 }
 
 func (c LoxClass) Arity() int {
@@ -34,6 +35,10 @@ func (c *LoxClass) Call(interpreter *Interpreter, arguments []any) (any, error) 
 func (c *LoxClass) findMethod(name string) *LoxFunction {
 	if method, ok := c.Methods[name]; ok {
 		return method
+	}
+
+	if c.Super != nil {
+		return c.Super.findMethod(name)
 	}
 
 	return nil

@@ -27,6 +27,8 @@ type ExpressionVisitor interface {
 	VisitGetExpression(*GetExpression) any
 	VisitSetExpression(*SetExpression) any
 	VisitThisExpression(*ThisExpression) any
+	VisitSuperGetExpression(*SuperGetExpression) any
+	VisitSuperSetExpression(*SuperSetExpression) any
 }
 
 type BinaryExpression struct {
@@ -187,4 +189,21 @@ type ThisExpression struct {
 
 func (e *ThisExpression) Accept(v ExpressionVisitor) any {
 	return v.VisitThisExpression(e)
+}
+
+type SuperGetExpression struct {
+	Keyword, Method *token.Token
+}
+
+func (e *SuperGetExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitSuperGetExpression(e)
+}
+
+type SuperSetExpression struct {
+	Keyword, Method *token.Token
+	Value           Expression
+}
+
+func (e *SuperSetExpression) Accept(v ExpressionVisitor) any {
+	return v.VisitSuperSetExpression(e)
 }

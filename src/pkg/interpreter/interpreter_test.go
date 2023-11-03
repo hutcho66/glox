@@ -223,6 +223,48 @@ world"`, "hello\nworld"},
 			test.greeting`,
 			"Hello, John",
 		},
+		{"inheritance", `
+			class A {
+				test() {
+					return 5;
+				}
+			}
+			class B < A {
+				test() {
+					return super.test() + 3;
+				}
+			}
+			B().test()`,
+			8.0,
+		},
+		{"getter on super", `
+			class A {
+				get test {
+					return 5;
+				}
+			}
+			class B < A {
+				test() {
+					return super.test + 3;
+				}
+			}
+			B().test()`,
+			8.0,
+		},
+		{"setter on super", `
+			class A {
+				set name(first) {
+					this.fullName = first + " Smith"
+				}
+			}
+			class B < A {
+				init(first) {
+					super.name = first
+				}
+			}
+			B("John").fullName`,
+			"John Smith",
+		},
 
 		// builtins
 		{"clock", "clock()", float64(time.Now().UnixMilli() / 1000.0)},

@@ -225,7 +225,23 @@ func (i *Interpreter) VisitFunctionStatement(s *ast.FunctionStatement) {
 }
 
 func (i *Interpreter) VisitClassStatement(s *ast.ClassStatement) {
+	var superclass *LoxClass = nil
+	if s.Superclass != nil {
+		value := i.evaluate(s.Superclass)
+
+		var ok bool
+		superclass, ok = value.(*LoxClass)
+		if !ok {
+			panic(lox_error.RuntimeError(s.Superclass.Name, "Superclass must be a class."))
+		}
+	}
+
 	i.environment.define(s.Name.Lexeme, nil)
+
+	if superclass != nil {
+		i.environment = NewEnclosingEnvironment(i.environment)
+		i.environment.define("super", superclass)
+	}
 
 	methods := map[string]*LoxFunction{}
 	for _, method := range s.Methods {
@@ -233,7 +249,12 @@ func (i *Interpreter) VisitClassStatement(s *ast.ClassStatement) {
 		methods[method.Name.Lexeme] = function
 	}
 
-	class := &LoxClass{Name: s.Name.Lexeme, Methods: methods}
+	class := &LoxClass{Name: s.Name.Lexeme, Methods: methods, Super: superclass}
+
+	if superclass != nil {
+		i.environment = i.environment.enclosing
+	}
+
 	i.environment.assign(s.Name, class)
 }
 
@@ -383,6 +404,58 @@ func (i *Interpreter) VisitSetExpression(e *ast.SetExpression) any {
 
 func (i *Interpreter) VisitThisExpression(e *ast.ThisExpression) any {
 	return i.lookupVariable(e.Keyword, e)
+}
+
+func (i *Interpreter) VisitSuperGetExpression(e *ast.SuperGetExpression) any {
+	distance := i.locals[e]
+	superclass := i.environment.getAt(distance, "super")
+	sc := superclass.(*LoxClass)
+	object := i.environment.getAt(distance-1, "this").(LoxObject)
+	method := sc.findMethod(e.Method.Lexeme)
+
+	if method == nil {
+		panic(lox_error.RuntimeError(e.Method, "Undefined property '"+e.Method.Lexeme+"'."))
+	}
+
+	// if field is a getter method, call it immediately
+	if method.declaration.Kind == ast.GETTER_METHOD {
+		boundMethod := method.bind(object)
+		value, err := boundMethod.Call(i, []any{})
+		if err != nil {
+			panic(lox_error.RuntimeError(e.Keyword, err.Error()))
+		}
+
+		return value
+	}
+
+	return method.bind(object)
+}
+
+func (i *Interpreter) VisitSuperSetExpression(e *ast.SuperSetExpression) any {
+	distance := i.locals[e]
+	superclass := i.environment.getAt(distance, "super")
+	sc := superclass.(*LoxClass)
+	object := i.environment.getAt(distance-1, "this").(LoxObject)
+	method := sc.findMethod(e.Method.Lexeme)
+
+	if method == nil {
+		panic(lox_error.RuntimeError(e.Method, "Undefined setter '"+e.Method.Lexeme+"'."))
+	}
+
+	// the only case where it makes sense to use a super set expression
+	// is if the method is a setter
+	if method.declaration.Kind == ast.SETTER_METHOD {
+		value := i.evaluate(e.Value)
+		boundMethod := method.bind(object)
+		value, err := boundMethod.Call(i, []any{value})
+		if err != nil {
+			panic(lox_error.RuntimeError(e.Keyword, err.Error()))
+		}
+
+		return value
+	}
+
+	panic(lox_error.RuntimeError(e.Keyword, "Method is not a setter"))
 }
 
 func (i *Interpreter) arrayIndexExpression(e *ast.IndexExpression) any {

@@ -366,6 +366,65 @@ Closures are fully supported in both named and lambda functions
 11
 ```
 
+### Classes
+
+glox classes are defined using the `class` keyword. Classes can be constructed using an optional `init` method.
+```
+> class Foo { 
+  init(value) {
+    this.bar = value
+  }
+> var foo = Foo("baz")
+> foo.bar()
+baz
+```
+
+The `static` keyword can be used to define a class method.
+```
+> class Math {
+  static square(r) {
+    return r * r
+  }
+}
+> Math.square(5)
+25
+```
+
+Single inheritance is supported
+```
+> class A {
+  foo() {
+    return "bar"
+  }
+}
+> class B > A {
+  foo() {
+    return "foo" + super.foo()
+  }
+}
+> B().foo()
+"foobar"
+```
+
+Getters (keyword `get`) and setters (keyword `set`) are supported.
+```
+> class Foo { 
+  set name(first) {
+    this.fullName = first + " Smith"
+  }
+
+  get formalGreeting {
+    return "Good morning, " + this.fullName
+  }
+}
+> var foo = Foo()
+> foo.name = "James" // using a setter
+> foo.formalGreeting // using a getter
+"Good morning, James Smith"
+```
+
+
+
 ## Usage
 
 ```bash

@@ -20,6 +20,7 @@ const (
 const (
 	NOT_CLASS ClassType = iota
 	CLASS
+	SUBCLASS
 )
 
 type Resolver struct {
@@ -81,7 +82,7 @@ func (r *Resolver) resolveLocal(expression ast.Expression, name *token.Token) {
 
 func (r *Resolver) resolveFunction(function *ast.FunctionStatement, functionType FunctionType) {
 
-	if function.Kind == ast.STATIC_METHOD && r.currentClass != CLASS {
+	if function.Kind == ast.STATIC_METHOD && r.currentClass == NOT_CLASS {
 		panic(lox_error.ResolutionError(function.Name, "Cannot declare function as static outside of class declaration."))
 	}
 
@@ -159,6 +160,20 @@ func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
 	r.declare(s.Name)
 	r.define(s.Name)
 
+	if s.Superclass != nil {
+		if s.Name.Lexeme == s.Superclass.Name.Lexeme {
+			panic(lox_error.ResolutionError(s.Superclass.Name, "A class can't inherit from itself."))
+		}
+
+		r.currentClass = SUBCLASS
+		r.resolveExpression(s.Superclass)
+	}
+
+	if s.Superclass != nil {
+		r.beginScope()
+		r.peekScope()["super"] = true
+	}
+
 	r.beginScope()
 
 	r.peekScope()["this"] = true
@@ -176,6 +191,10 @@ func (r *Resolver) VisitClassStatement(s *ast.ClassStatement) {
 	}
 
 	r.endScope()
+
+	if s.Superclass != nil {
+		r.endScope()
+	}
 
 	r.currentClass = enclosingClass
 }
@@ -302,6 +321,27 @@ func (r *Resolver) VisitThisExpression(e *ast.ThisExpression) any {
 		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'this' outside of a class."))
 	}
 	r.resolveLocal(e, e.Keyword)
+	return nil
+}
+
+func (r *Resolver) VisitSuperGetExpression(e *ast.SuperGetExpression) any {
+	if r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
+	} else if r.currentClass != SUBCLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
+	}
+	r.resolveLocal(e, e.Keyword)
+	return nil
+}
+
+func (r *Resolver) VisitSuperSetExpression(e *ast.SuperSetExpression) any {
+	if r.currentClass == NOT_CLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' outside of a class."))
+	} else if r.currentClass != SUBCLASS {
+		panic(lox_error.ResolutionError(e.Keyword, "Can't use 'super' in a class with no superclass."))
+	}
+	r.resolveLocal(e, e.Keyword)
+	r.resolveExpression(e.Value)
 	return nil
 }
 

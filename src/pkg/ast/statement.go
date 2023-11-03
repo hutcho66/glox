@@ -123,8 +123,9 @@ func (s *ContinueStatement) Accept(v StatementVisitor) {
 }
 
 type ClassStatement struct {
-	Name    *token.Token
-	Methods []*FunctionStatement
+	Name       *token.Token
+	Methods    []*FunctionStatement
+	Superclass *VariableExpression
 }
 
 func (s *ClassStatement) Accept(v StatementVisitor) {

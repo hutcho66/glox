@@ -68,12 +68,18 @@ func (p *Parser) varDeclaration() ast.Statement {
 
 func (p *Parser) classDeclaration() ast.Statement {
 	name := p.consume(token.IDENTIFIER, "Expect class name.")
+
+	var super *ast.VariableExpression = nil
+	if p.match(token.LESS) {
+		p.consume(token.IDENTIFIER, "Expect superclass name.")
+		super = &ast.VariableExpression{Name: p.previous()}
+	}
+
 	p.consume(token.LEFT_BRACE, "Exepct '{' before class body.")
 
 	methods := []*ast.FunctionStatement{}
+	p.eatNewLines()
 	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
-		p.eatNewLines()
-
 		if p.match(token.GET) {
 			// this is a getter
 			name := p.consume(token.IDENTIFIER, "Expect getter name.")
@@ -104,7 +110,7 @@ func (p *Parser) classDeclaration() ast.Statement {
 
 	p.consume(token.RIGHT_BRACE, "Expect '}' after class body.")
 
-	return &ast.ClassStatement{Name: name, Methods: methods}
+	return &ast.ClassStatement{Name: name, Methods: methods, Superclass: super}
 }
 
 func (p *Parser) funDeclaration(kind string) ast.Statement {
@@ -401,6 +407,8 @@ func (p *Parser) assignment() ast.Expression {
 			return &ast.AssignmentExpression{Name: e.Name, Value: value}
 		case *ast.GetExpression:
 			return &ast.SetExpression{Object: e.Object, Name: e.Name, Value: value}
+		case *ast.SuperGetExpression:
+			return &ast.SuperSetExpression{Keyword: e.Keyword, Method: e.Method, Value: value}
 		case *ast.IndexExpression:
 			if e.RightIndex != nil {
 				panic(lox_error.ParserError(equals, "Cannot assign to array slice"))
@@ -537,6 +545,12 @@ func (p *Parser) primary() ast.Expression {
 	}
 	if p.match(token.THIS) {
 		return &ast.ThisExpression{Keyword: p.previous()}
+	}
+	if p.match(token.SUPER) {
+		keyword := p.previous()
+		p.consume(token.DOT, "Expect '.' after 'super'")
+		method := p.consume(token.IDENTIFIER, "Expect superclass method name.")
+		return &ast.SuperGetExpression{Keyword: keyword, Method: method}
 	}
 	if p.match(token.LEFT_PAREN) {
 		if p.match(token.RIGHT_PAREN) {
