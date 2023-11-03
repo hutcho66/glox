@@ -20,19 +20,19 @@ This is a implementation of the language in go, with a few additions:
 
 
 ## Table of Contents
-- [Language Specification](#language-specification)
-  - [Basic Operations](#basic-operations)
-  - [Index notation for strings](#index-notation-for-strings)
-  - [Arrays](#arrays)
-  - [Maps](#maps)
-  - [Statement Termination](#statement-termination)
-  - [Control Flow and Looping](#control-flow-and-looping)
-  - [Functions](#functions)
-- [Usage](#usage)
-  - [Build and run immediately](#build-and-run-immediately)
-  - [Build and run from local directory](#build-and-run-from-local-directory)
-  - [Build and install to GOPATH](#build-and-install-to-gopath)
-
+  - [Language Specification](#language-specification)
+    - [Basic Operations](#basic-operations)
+    - [Index notation for strings](#index-notation-for-strings)
+    - [Arrays](#arrays)
+    - [Maps](#maps)
+    - [Statement Termination](#statement-termination)
+    - [Control Flow and Looping](#control-flow-and-looping)
+    - [Functions](#functions)
+    - [Classes](#classes)
+  - [Usage](#usage)
+    - [Tests](#tests)
+    - [Install to GOPATH](#install-to-gopath)
+  
 ## Language Specification
 
 glox is a basic language with some object oriented features.
